@@ -39,15 +39,29 @@ async function getActiveMemberIds(
 
   try {
     do {
-      const response = await (notion as any).dataSources.query({
-        data_source_id: sdmDataSourceId,
-        filter: {
-          property: "Status Keaktifan",
-          select: { equals: "Aktif" },
-        },
-        start_cursor: cursor,
-        page_size: 100,
-      });
+      let response: any;
+      try {
+        response = await (notion as any).dataSources.query({
+          data_source_id: sdmDataSourceId,
+          filter: {
+            property: "Status Keaktifan",
+            select: { equals: "Aktif" },
+          },
+          start_cursor: cursor,
+          page_size: 100,
+        });
+      } catch {
+        // Fallback filter using status type if select query fails
+        response = await (notion as any).dataSources.query({
+          data_source_id: sdmDataSourceId,
+          filter: {
+            property: "Status Keaktifan",
+            status: { equals: "Aktif" },
+          },
+          start_cursor: cursor,
+          page_size: 100,
+        });
+      }
 
       response.results.forEach((page: any) => activeIds.add(page.id));
       cursor = response.has_more ? response.next_cursor : undefined;
@@ -60,7 +74,6 @@ async function getActiveMemberIds(
       "[Optimization] Failed to fetch active members bulk:",
       error.message,
     );
-    // Return empty set, fallback to individual check if absolutely necessary (though we want to avoid that)
     return activeIds;
   }
 }
@@ -98,8 +111,27 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const body = await req.json();
-  const meetingId = body?.data?.id;
+  let body: any = {};
+  try {
+    body = await req.json();
+  } catch (e) {
+    console.warn("[Notion Webhook] Could not parse JSON body:", e);
+  }
+
+  const { searchParams } = new URL(req.url);
+
+  // Flexible extraction of meetingId from query params or various webhook payload formats
+  const meetingId =
+    searchParams.get("meetingId") ||
+    searchParams.get("id") ||
+    body?.data?.id ||
+    body?.entity?.id ||
+    body?.id ||
+    body?.page_id ||
+    body?.pageId ||
+    (Array.isArray(body?.events)
+      ? body.events[0]?.entity?.id ?? body.events[0]?.data?.id
+      : undefined);
 
   if (!meetingId) {
     return NextResponse.json(
@@ -136,7 +168,7 @@ export async function POST(req: Request) {
         );
       }
 
-      // Fetch the meeting details to get the 'Jadwal' (Schedule)
+      // Fetch the meeting details directly from Notion API
       const meetingPage = await notion.pages.retrieve({ page_id: meetingId });
       const meetingProperties = (meetingPage as any).properties ?? {};
       const meetingJadwalKey = findPropertyKey(meetingProperties, "Jadwal");
@@ -144,7 +176,7 @@ export async function POST(req: Request) {
         ? meetingProperties[meetingJadwalKey]?.date?.start
         : undefined;
 
-      const payloadProperties = body.data?.properties ?? {};
+      const payloadProperties = body.data?.properties ?? body.properties ?? {};
       const invitationPayloadKey = findPropertyKey(
         payloadProperties,
         "(AUT) Daftar Undangan",
@@ -164,34 +196,62 @@ export async function POST(req: Request) {
       );
       const meetingKindKey = findPropertyKey(meetingProperties, "Kind");
 
-      const { searchParams } = new URL(req.url);
       const kindFromUrl = searchParams.get("kind");
-      const kindFromProp = meetingKindKey
-        ? meetingProperties[meetingKindKey]?.rich_text?.[0]?.plain_text
+      const kindPropObj = meetingKindKey
+        ? meetingProperties[meetingKindKey]
+        : null;
+      const kindFromProp = kindPropObj
+        ? kindPropObj.select?.name ||
+          kindPropObj.status?.name ||
+          kindPropObj.rich_text?.[0]?.plain_text ||
+          kindPropObj.title?.[0]?.plain_text ||
+          kindPropObj.formula?.string
         : undefined;
+
       let kind = kindFromUrl || kindFromProp;
 
       // Smart Inference Fallback
       if (!kind) {
-        if (divisiPayloadKey) {
+        if (
+          divisiPayloadKey ||
+          (meetingDivisiKey &&
+            meetingProperties[meetingDivisiKey]?.relation?.length > 0)
+        ) {
           kind = "(AUT) Divisi Terlibat";
-        } else if (invitationPayloadKey) {
+        } else if (invitationPayloadKey || meetingInvitationKey) {
           kind = "(AUT) Daftar Undangan";
         }
       }
 
-      const invitationRelation = invitationPayloadKey
+      // Read attendee relation directly from Notion meeting page properties
+      const meetingInvitationRel = meetingInvitationKey
+        ? meetingProperties[meetingInvitationKey]?.relation || []
+        : [];
+      const payloadInvitationRel = invitationPayloadKey
         ? payloadProperties[invitationPayloadKey]?.relation || []
         : [];
-      let finalInvitationIds = invitationRelation.map((r: any) => r.id);
 
-      console.warn(`[Webhook] Automation Kind: ${kind || "Unknown"}`);
+      let finalInvitationIds: string[] = meetingInvitationRel.map(
+        (r: any) => r.id,
+      );
+      if (finalInvitationIds.length === 0 && payloadInvitationRel.length > 0) {
+        finalInvitationIds = payloadInvitationRel.map((r: any) => r.id);
+      }
 
-      // If this is a Division update, we need to populate the invitation list first
-      if (kind === "(AUT) Divisi Terlibat" && sdmDbId) {
+      console.warn(
+        `[Webhook] Automation Kind: ${kind || "Unknown"}, Attendees Found: ${finalInvitationIds.length}`,
+      );
+
+      const isDivisiKind = Boolean(
+        kind &&
+          (kind.includes("Divisi") || kind === "(AUT) Divisi Terlibat"),
+      );
+
+      // If this is a Division update, expand division members into invitation list
+      if (isDivisiKind && sdmDbId) {
         const divisions = meetingDivisiKey
           ? meetingProperties[meetingDivisiKey]?.relation || []
-          : [];
+          : payloadProperties[divisiPayloadKey ?? ""]?.relation || [];
         const candidateMemberIds = new Set<string>(finalInvitationIds);
 
         // 1. Collect all member IDs from all involved divisions in parallel
@@ -199,11 +259,14 @@ export async function POST(req: Request) {
           divisions.map(async (div: any) => {
             try {
               const divPage = await notion.pages.retrieve({ page_id: div.id });
-              return (
-                (divPage as any).properties?.["Anggota Divisi"]?.relation?.map(
-                  (r: any) => r.id,
-                ) || []
-              );
+              const divProps = (divPage as any).properties ?? {};
+              const divMembersKey =
+                findPropertyKey(divProps, "Anggota Divisi") ||
+                findPropertyKey(divProps, "SDM");
+              const rel = divMembersKey
+                ? divProps[divMembersKey]?.relation || []
+                : divProps["Anggota Divisi"]?.relation || [];
+              return rel.map((r: any) => r.id);
             } catch (e: any) {
               console.error(
                 `[Webhook] Failed to fetch division ${div.id}:`,
@@ -225,17 +288,20 @@ export async function POST(req: Request) {
         // 3. Filter candidates
         const validatedInvitationIds = Array.from(candidateMemberIds).filter(
           (id) => {
-            if (activeMemberIds.has(id)) return true;
-            console.warn(
-              `[Webhook] Skipping non-active or missing member: ${id}`,
-            );
-            return false;
+            if (activeMemberIds.size > 0) {
+              if (activeMemberIds.has(id)) return true;
+              console.warn(
+                `[Webhook] Skipping non-active or missing member: ${id}`,
+              );
+              return false;
+            }
+            return true;
           },
         );
 
         finalInvitationIds = validatedInvitationIds;
 
-        if (meetingInvitationKey) {
+        if (meetingInvitationKey && finalInvitationIds.length > 0) {
           await notion.pages.update({
             page_id: meetingId,
             properties: {
@@ -250,7 +316,7 @@ export async function POST(req: Request) {
         }
       }
 
-      // Sync attendees
+      // Sync attendees to DB Rekam Presensi
       const results = await syncMeetingAttendees(
         notion,
         meetingId,
@@ -263,7 +329,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         success: true,
         meetingId,
-        processed: invitationRelation.length,
+        processed: finalInvitationIds.length,
         results,
       });
     } catch (error: unknown) {
@@ -311,33 +377,69 @@ async function syncAttendee(
       return { attendeeId, status: "exists", pageId: existing.results[0].id };
     }
 
-    // 2. Create entry
-    const newPage = await notion.pages.create({
-      parent: { database_id: presensiDbId },
-      properties: {
-        "ID Presensi": {
-          title: [{ text: { content: handshakeId } }],
+    // 2. Create entry (try status property first, fallback to select property)
+    try {
+      const newPage = await notion.pages.create({
+        parent: { database_id: presensiDbId },
+        properties: {
+          "ID Presensi": {
+            title: [{ text: { content: handshakeId } }],
+          },
+          "Rapat Terkait": {
+            relation: [{ id: meetingId }],
+          },
+          Peserta: {
+            relation: [{ id: attendeeId }],
+          },
+          "Status Kehadiran": {
+            status: { name: "Belum Hadir" },
+          },
+          ...(meetingJadwal
+            ? {
+                "Waktu Kedatangan": {
+                  date: { start: meetingJadwal },
+                },
+              }
+            : {}),
         },
-        "Rapat Terkait": {
-          relation: [{ id: meetingId }],
-        },
-        Peserta: {
-          relation: [{ id: attendeeId }],
-        },
-        "Status Kehadiran": {
-          status: { name: "Belum Hadir" },
-        },
-        ...(meetingJadwal
-          ? {
-              "Waktu Kedatangan": {
-                date: { start: meetingJadwal },
-              },
-            }
-          : {}),
-      },
-    });
+      });
 
-    return { attendeeId, status: "created", pageId: newPage.id };
+      return { attendeeId, status: "created", pageId: newPage.id };
+    } catch (createError: any) {
+      if (
+        createError?.message?.includes("status") ||
+        createError?.code === "validation_error"
+      ) {
+        // Fallback retry using select property
+        const newPage = await notion.pages.create({
+          parent: { database_id: presensiDbId },
+          properties: {
+            "ID Presensi": {
+              title: [{ text: { content: handshakeId } }],
+            },
+            "Rapat Terkait": {
+              relation: [{ id: meetingId }],
+            },
+            Peserta: {
+              relation: [{ id: attendeeId }],
+            },
+            "Status Kehadiran": {
+              select: { name: "Belum Hadir" },
+            },
+            ...(meetingJadwal
+              ? {
+                  "Waktu Kedatangan": {
+                    date: { start: meetingJadwal },
+                  },
+                }
+              : {}),
+          },
+        });
+
+        return { attendeeId, status: "created", pageId: newPage.id };
+      }
+      throw createError;
+    }
   } catch (error: any) {
     console.error(`Error processing attendee ${attendeeId}:`, error);
     return { attendeeId, status: "error", error: error.message };
