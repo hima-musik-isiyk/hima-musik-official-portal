@@ -1,11 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest } from "next/server";
 
+import { supabaseAdmin } from "@/lib/supabase";
+
 const DISCORD_EMBED_LIMIT = 4096;
 const DISCORD_FIELD_LIMIT = 1024;
 const DISCORD_CODE_BLOCK_LIMIT = 4084;
 const INSTAGRAM_LOGO_URL =
-  "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Instagram_logo_2016.svg/132px-Instagram_logo_2016.svg.png";
+  process.env.INSTAGRAM_LOGO_URL ??
+  "https://cdn-icons-png.flaticon.com/512/174/174855.png";
 const HIMA_INSTAGRAM_ID = process.env.HIMA_INSTAGRAM_ID;
 
 const IDENTIFIER_ADJECTIVES = [
@@ -239,6 +242,81 @@ function isInstagramWebhookPayload(body: any) {
   );
 }
 
+async function fetchMediaBuffer(url: string): Promise<{
+  buffer: Buffer;
+  contentType: string;
+  filename: string;
+} | null> {
+  if (!url || typeof url !== "string") return null;
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) return null;
+
+    const contentType = res.headers.get("content-type") || "image/jpeg";
+    const arrayBuf = await res.arrayBuffer();
+    const buffer = Buffer.from(arrayBuf);
+
+    let ext = "jpg";
+    if (contentType.includes("png")) ext = "png";
+    else if (contentType.includes("gif")) ext = "gif";
+    else if (contentType.includes("webp")) ext = "webp";
+    else if (contentType.includes("mp4") || contentType.includes("video"))
+      ext = "mp4";
+
+    const filename = `media_${Date.now()}_${Math.floor(Math.random() * 1000)}.${ext}`;
+
+    return { buffer, contentType, filename };
+  } catch (err) {
+    console.warn(
+      "[Webhook] Failed to fetch media buffer from temporary Meta URL:",
+      err,
+    );
+    return null;
+  }
+}
+
+async function mirrorToSupabase(
+  buffer: Buffer,
+  filename: string,
+  contentType: string,
+): Promise<string | null> {
+  if (!supabaseAdmin) return null;
+  try {
+    const bucketName =
+      process.env.INSTAGRAM_ATTACHMENTS_BUCKET ||
+      process.env.INSTAGRAM_SECRET_PAGE_BUCKET ||
+      "instagram-secret-page";
+    const storagePath = `instagram-webhook-media/${filename}`;
+
+    const { error } = await supabaseAdmin.storage
+      .from(bucketName)
+      .upload(storagePath, buffer, {
+        contentType,
+        upsert: true,
+      });
+
+    if (error) {
+      console.warn("[Supabase Storage] Failed to upload media:", error.message);
+      return null;
+    }
+
+    const { data } = supabaseAdmin.storage
+      .from(bucketName)
+      .getPublicUrl(storagePath);
+
+    return data?.publicUrl ?? null;
+  } catch (err) {
+    console.warn("[Supabase Storage] Mirror error:", err);
+    return null;
+  }
+}
+
 async function buildEmbedsForEntry(entry: any, context: WebhookContext) {
   return [
     ...(await buildMessagingEmbeds(entry, context)),
@@ -255,44 +333,94 @@ async function buildMessagingEmbeds(entry: any, context: WebhookContext) {
     const eventType = getMessagingEventType(event);
     const identifier = context.identifier;
     const himaSender = isHimaSender(entry, event);
+    const himaId =
+      HIMA_INSTAGRAM_ID || process.env.INSTAGRAM_ACCOUNT_ID || entry?.id;
+
+    const senderId = himaSender ? himaId : event.sender?.id || context.senderId;
 
     const senderProfile =
-      context.senderId === event.sender?.id
+      senderId === context.senderId && context.senderProfile
         ? context.senderProfile
-        : await fetchInstagramProfile(event.sender?.id);
+        : await fetchInstagramProfile(senderId);
 
     const discordIdentity = getDiscordIdentity({
       profile: senderProfile,
-      fallback: identifier,
+      fallback: himaSender
+        ? "HIMA Musik ISI Yogyakarta"
+        : senderId || identifier,
       isHima: himaSender,
     });
 
     const attachments = getMessageAttachments(event.message);
     const storyReply = getStoryReply(event.message);
-    const imageAttachment = storyReply?.url
-      ? { url: storyReply.url }
-      : attachments.find(isDiscordImageAttachment);
+    const rawImageUrl = storyReply?.url
+      ? storyReply.url
+      : attachments.find(isDiscordImageAttachment)?.url;
+
+    const files: Array<{
+      buffer: Buffer;
+      filename: string;
+      contentType: string;
+    }> = [];
+    let imageEmbedUrl: string | undefined = undefined;
+    let supabaseUrl: string | null = null;
+
+    if (rawImageUrl) {
+      const fetchedMedia = await fetchMediaBuffer(rawImageUrl);
+      if (fetchedMedia) {
+        files.push(fetchedMedia);
+        imageEmbedUrl = `attachment://${fetchedMedia.filename}`;
+        supabaseUrl = await mirrorToSupabase(
+          fetchedMedia.buffer,
+          fetchedMedia.filename,
+          fetchedMedia.contentType,
+        );
+      } else {
+        imageEmbedUrl = rawImageUrl;
+      }
+    }
 
     const title = himaSender
       ? formatHimaDiscordUsername(senderProfile)
-      : identifier;
+      : discordIdentity.username;
+
+    const messageText = (
+      event.message?.text ||
+      event.message?.caption ||
+      event.message?.quick_reply?.payload ||
+      event.message?.quick_reply?.title ||
+      ""
+    ).trim();
+
+    const readMid = event.read?.mid;
+    const decodedReadMid = decodeMetaBase64(readMid);
 
     const fields = [
       formatField(
         "From",
         himaSender
           ? formatHimaDiscordUsername(senderProfile)
-          : formatProfile(senderProfile, event.sender?.id, {
-              includeId: false,
+          : formatProfile(senderProfile, senderId, {
+              includeId: true,
             }),
         true,
       ),
       formatField("Event", formatEventLabel(eventType), true),
       formatField("Time", formatDisplayTime(event.timestamp), true),
       formatField("Story", formatStoryReply(storyReply), true),
+      formatField("Message", messageText || null, false),
+      formatField(
+        "Read Message ID",
+        decodedReadMid
+          ? `\`${decodedReadMid}\`\n*(Raw: \`${readMid}\`)*`
+          : readMid
+            ? `\`${readMid}\``
+            : null,
+        false,
+      ),
       formatField(
         "Attachments",
-        imageAttachment ? null : formatAttachments(attachments),
+        formatAttachments(attachments, supabaseUrl),
         false,
       ),
     ].filter(Boolean) as Array<{
@@ -310,8 +438,9 @@ async function buildMessagingEmbeds(entry: any, context: WebhookContext) {
       thumbnail: discordIdentity.avatarUrl
         ? { url: discordIdentity.avatarUrl }
         : undefined,
-      image: imageAttachment ? { url: imageAttachment.url } : undefined,
+      image: imageEmbedUrl ? { url: imageEmbedUrl } : undefined,
       fields,
+      files,
       footer: {
         text: "Instagram webhook",
       },
@@ -377,7 +506,8 @@ function buildStandbyEmbeds(entry: any, context: WebhookContext) {
 
 function getMessagingEventType(event: any) {
   if (event.message?.is_deleted) return "message_edit";
-  if (event.message?.reply_to?.story) return "story_replies";
+  if (event.message?.reply_to?.story || Boolean(getStoryReply(event.message)))
+    return "story_replies";
   if (event.message) return "messages";
   if (event.reaction) return "message_reactions";
   if (event.read) return "messaging_seen";
@@ -395,30 +525,57 @@ function getMessagingEventType(event: any) {
 }
 
 function getMessagingDescription(event: any, eventType: string) {
+  const text = (
+    event.message?.text ||
+    event.message?.caption ||
+    event.message?.quick_reply?.payload ||
+    event.message?.quick_reply?.title ||
+    ""
+  ).trim();
+
+  const attachmentsDesc = describeAttachments(event.message, {
+    compact: false,
+  });
+  const reactionDesc = event.reaction
+    ? `${event.reaction?.action ?? "reacted"} ${event.reaction?.emoji ?? event.reaction?.reaction ?? ""}`.trim()
+    : "";
+
+  const explicitContent = text || attachmentsDesc || reactionDesc;
+
   if (eventType === "messages") {
     return truncate(
-      event.message?.text ||
-        describeAttachments(event.message, { compact: true }),
+      explicitContent || "Message received.",
       DISCORD_EMBED_LIMIT,
     );
   }
 
   if (eventType === "story_replies") {
-    return truncate(
-      `Replied to your story${event.message?.text ? `: ${event.message.text}` : "."}`,
-      DISCORD_EMBED_LIMIT,
-    );
+    if (explicitContent) {
+      return truncate(
+        `💬 **Replied to your story:**\n>>> ${explicitContent}`,
+        DISCORD_EMBED_LIMIT,
+      );
+    }
+    return "💬 **Replied to your story** *(No text content provided)*";
   }
 
   if (eventType === "message_reactions") {
     return truncate(
-      `${event.reaction?.action ?? "reaction"} ${event.reaction?.emoji ?? event.reaction?.reaction ?? ""}`.trim(),
+      reactionDesc || "Message reaction received.",
       DISCORD_EMBED_LIMIT,
     );
   }
 
   if (eventType === "messaging_seen") {
-    return "User has seen the message.";
+    const rawMid = event.read?.mid;
+    const decodedMid = decodeMetaBase64(rawMid);
+    if (decodedMid) {
+      return truncate(
+        `👀 **User has read the message**\n> **Decoded MID:** \`${decodedMid}\``,
+        DISCORD_EMBED_LIMIT,
+      );
+    }
+    return "👀 **User has read the message**";
   }
 
   if (eventType === "messaging_postbacks") {
@@ -439,7 +596,10 @@ function getMessagingDescription(event: any, eventType: string) {
     return "Messaging handover event received.";
   }
 
-  return "Messaging event received.";
+  return truncate(
+    explicitContent || "Messaging event received.",
+    DISCORD_EMBED_LIMIT,
+  );
 }
 
 function getChangeDescription(fieldName: string, value: any) {
@@ -511,17 +671,47 @@ function formatUser(user: any) {
   return [username, user.name].filter(Boolean).join(" | ");
 }
 
+function decodeMetaBase64(value: string | null | undefined): string | null {
+  if (!value || typeof value !== "string") return null;
+  if (!/^[A-Za-z0-9+/=_-]{16,}$/.test(value)) return null;
+  try {
+    const decoded = Buffer.from(value, "base64").toString("utf-8");
+    if (
+      decoded &&
+      /^[\x20-\x7E]+$/.test(decoded) &&
+      (decoded.includes(":") || decoded.includes("ig_"))
+    ) {
+      return decoded;
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
 function formatProfile(
   profile: any,
-  fallbackId: string,
+  fallbackId?: string,
   options: { includeId?: boolean } = {},
 ) {
   const { includeId = true } = options;
-  if (!profile) return includeId ? fallbackId : "Unknown Instagram user";
-  const username = profile.username ? `@${profile.username}` : null;
-  return [username, profile.name, includeId ? profile.id : null]
-    .filter(Boolean)
-    .join(" | ");
+
+  if (profile) {
+    const username = profile.username ? `@${profile.username}` : null;
+    const parts = [
+      username,
+      profile.name,
+      includeId && profile.id ? `ID: ${profile.id}` : null,
+    ].filter(Boolean);
+    if (parts.length > 0) return parts.join(" | ");
+  }
+
+  if (fallbackId && String(fallbackId).trim()) {
+    const trimmed = String(fallbackId).trim();
+    return /^\d+$/.test(trimmed) ? `ID: ${trimmed}` : trimmed;
+  }
+
+  return "Unknown Instagram user";
 }
 
 function describeAttachments(
@@ -532,19 +722,20 @@ function describeAttachments(
   if (!attachments.length) return null;
 
   if (options.compact && attachments.some(isDiscordImageAttachment)) {
-    return "Sent an image.";
+    return "Sent a photo/media.";
   }
 
   return attachments
-    .map((attachment) =>
-      [
-        attachment.type,
-        attachment.url,
-        attachment.postId && `post:${attachment.postId}`,
-      ]
-        .filter(Boolean)
-        .join(" "),
-    )
+    .map((attachment) => {
+      const type = attachment.type;
+      if (type === "story_mention") return "🖼️ Story Mention";
+      if (type === "ig_story") return "🖼️ Instagram Story";
+      if (type === "image") return "📷 Photo";
+      if (type === "video") return "📹 Video";
+      if (type === "audio") return "🎙️ Voice Note";
+      if (type === "sticker") return "🎨 Sticker";
+      return `📎 ${type || "Attachment"}`;
+    })
     .join("\n");
 }
 
@@ -562,30 +753,60 @@ function getMessageAttachments(message: any) {
     .filter((attachment: any) => attachment.url || attachment.postId);
 }
 
-function formatAttachments(attachments: any[]) {
-  if (!attachments.length) return null;
+function formatAttachments(attachments: any[], supabaseUrl?: string | null) {
+  const lines: string[] = [];
 
-  return attachments
-    .map((attachment) =>
-      [
-        attachment.type,
-        attachment.url,
-        attachment.postId && `post:${attachment.postId}`,
-      ]
-        .filter(Boolean)
-        .join(" | "),
-    )
-    .join("\n");
+  if (attachments.length > 0) {
+    attachments.forEach((attachment) => {
+      const type = attachment.type;
+      let label = `📎 ${type || "Attachment"}`;
+      if (type === "story_mention") label = "🖼️ Story Mention";
+      else if (type === "ig_story") label = "🖼️ Instagram Story";
+      else if (type === "image") label = "📷 Photo Attachment";
+      else if (type === "video") label = "📹 Video Attachment";
+      else if (type === "audio") label = "🎙️ Voice Note";
+      else if (type === "sticker") label = "🎨 Sticker";
+
+      if (attachment.postId) {
+        label += ` (Post ID: ${attachment.postId})`;
+      }
+      lines.push(`• ${label}`);
+    });
+  }
+
+  if (supabaseUrl) {
+    lines.push(`• [🔗 View Permanent Media Backup](${supabaseUrl})`);
+  }
+
+  return lines.length > 0 ? lines.join("\n") : null;
 }
 
 function getStoryReply(message: any) {
   const story = message?.reply_to?.story;
-  if (!story) return null;
+  if (story) {
+    return {
+      id: story.id,
+      url: story.url,
+    };
+  }
 
-  return {
-    id: story.id,
-    url: story.url,
-  };
+  const storyAttachment = Array.isArray(message?.attachments)
+    ? message.attachments.find(
+        (att: any) =>
+          att.type === "story_mention" ||
+          att.type === "ig_story" ||
+          Boolean(att.payload?.story),
+      )
+    : null;
+
+  if (storyAttachment) {
+    return {
+      id: storyAttachment.payload?.story?.id || storyAttachment.payload?.id,
+      url: storyAttachment.payload?.url || storyAttachment.payload?.story?.url,
+    };
+  }
+
+  return null;
 }
 
 function formatStoryReply(story: any) {
@@ -667,21 +888,108 @@ function hashString(value: string) {
   return hash >>> 0;
 }
 
-async function fetchInstagramProfile(id: string) {
+async function fetchInstagramProfile(
+  id: string,
+): Promise<InstagramProfile | null> {
   if (!id || !process.env.INSTAGRAM_ACCESS_TOKEN) return null;
 
-  const url = new URL(`https://graph.instagram.com/v25.0/${id}`);
-  url.searchParams.set("fields", "id,username,name,profile_pic");
-  url.searchParams.set("access_token", process.env.INSTAGRAM_ACCESS_TOKEN);
+  const token = process.env.INSTAGRAM_ACCESS_TOKEN;
+  const fields = "id,username,name,profile_pic,profile_picture_url";
 
+  let profile: InstagramProfile | null = null;
+
+  // 1. Try graph.facebook.com (standard for Instagram Messaging IGSID profile lookup)
   try {
-    const response = await fetch(url);
-    if (!response.ok) return null;
-    return await response.json();
-  } catch (error) {
-    console.error("Failed to fetch Instagram profile:", error);
-    return null;
+    const fbRes = await fetch(
+      `https://graph.facebook.com/v25.0/${id}?fields=${fields}&access_token=${token}`,
+    );
+    if (fbRes.ok) {
+      const data = await fbRes.json();
+      if (
+        data &&
+        (data.username ||
+          data.name ||
+          data.profile_pic ||
+          data.profile_picture_url)
+      ) {
+        profile = {
+          id: data.id || id,
+          username: data.username,
+          name: data.name,
+          profile_pic: data.profile_pic || data.profile_picture_url,
+        };
+      }
+    }
+  } catch {
+    // Ignore and try fallback
   }
+
+  // 2. Fallback to graph.instagram.com if not fetched
+  if (!profile) {
+    try {
+      const igRes = await fetch(
+        `https://graph.instagram.com/v25.0/${id}?fields=${fields}&access_token=${token}`,
+      );
+      if (igRes.ok) {
+        const data = await igRes.json();
+        if (
+          data &&
+          (data.username ||
+            data.name ||
+            data.profile_pic ||
+            data.profile_picture_url)
+        ) {
+          profile = {
+            id: data.id || id,
+            username: data.username,
+            name: data.name,
+            profile_pic: data.profile_pic || data.profile_picture_url,
+          };
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch Instagram profile:", error);
+    }
+  }
+
+  // 3. Direct Graph API picture endpoint query if profile_pic missing
+  if (profile && !profile.profile_pic) {
+    try {
+      const picRes = await fetch(
+        `https://graph.facebook.com/v25.0/${id}/picture?type=large&redirect=0&access_token=${token}`,
+      );
+      if (picRes.ok) {
+        const picData = await picRes.json();
+        if (picData?.data?.url) {
+          profile.profile_pic = picData.data.url;
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  // 4. Mirror temporary avatar URL to Supabase Storage for permanent caching
+  if (profile?.profile_pic && supabaseAdmin) {
+    try {
+      const avatarMedia = await fetchMediaBuffer(profile.profile_pic);
+      if (avatarMedia) {
+        const ext = avatarMedia.contentType.includes("png") ? "png" : "jpg";
+        const permanentAvatarUrl = await mirrorToSupabase(
+          avatarMedia.buffer,
+          `avatar_${id}_${Date.now()}.${ext}`,
+          avatarMedia.contentType,
+        );
+        if (permanentAvatarUrl) {
+          profile.profile_pic = permanentAvatarUrl;
+        }
+      }
+    } catch {
+      // Use raw profile_pic if mirroring fails
+    }
+  }
+
+  return profile;
 }
 
 async function getEntryContext(entry: any): Promise<WebhookContext> {
@@ -694,13 +1002,17 @@ async function getEntryContext(entry: any): Promise<WebhookContext> {
     primaryEvent ?? entry,
     eventType,
   );
-  const senderId =
-    primaryEvent?.sender?.id || entry?.changes?.[0]?.value?.from?.id;
-  const senderProfile = await fetchInstagramProfile(senderId);
   const himaSender = isHimaSender(entry, primaryEvent);
+  const himaId =
+    HIMA_INSTAGRAM_ID || process.env.INSTAGRAM_ACCOUNT_ID || entry?.id;
+  const senderId = himaSender
+    ? himaId || primaryEvent?.sender?.id
+    : primaryEvent?.sender?.id || entry?.changes?.[0]?.value?.from?.id;
+
+  const senderProfile = await fetchInstagramProfile(senderId);
   const discordIdentity = getDiscordIdentity({
     profile: senderProfile,
-    fallback: identifier,
+    fallback: himaSender ? "HIMA Musik ISI Yogyakarta" : senderId || identifier,
     isHima: himaSender,
   });
 
@@ -782,22 +1094,32 @@ async function sendParsedToDiscord(embed: any) {
     return;
   }
 
-  const { webhookUsername, webhookAvatarUrl, ...discordEmbed } = embed;
+  const { webhookUsername, webhookAvatarUrl, files, ...discordEmbed } = embed;
 
-  await sendDiscordPayload(webhookUrl, {
-    username: webhookUsername ?? embed.title,
-    avatar_url: webhookAvatarUrl ?? embed.thumbnail?.url ?? INSTAGRAM_LOGO_URL,
-    embeds: [
-      {
-        ...discordEmbed,
-        timestamp: new Date().toISOString(),
-      },
-    ],
-  });
+  await sendDiscordPayload(
+    webhookUrl,
+    {
+      username: webhookUsername ?? embed.title,
+      avatar_url: webhookAvatarUrl ?? INSTAGRAM_LOGO_URL,
+      embeds: [
+        {
+          ...discordEmbed,
+          timestamp: new Date().toISOString(),
+        },
+      ],
+    },
+    files,
+  );
 }
 
-function formatDiscordUsername(profile: any, fallback: string) {
-  return profile?.username ? `@${profile.username}` : fallback;
+function formatDiscordUsername(profile: any, fallback?: string) {
+  if (profile?.username) return `@${profile.username}`;
+  if (profile?.name) return profile.name;
+  if (fallback && String(fallback).trim()) {
+    const trimmed = String(fallback).trim();
+    return /^\d+$/.test(trimmed) ? `ID: ${trimmed}` : trimmed;
+  }
+  return "Instagram Account";
 }
 
 function getDiscordIdentity({
@@ -823,10 +1145,40 @@ function getDiscordIdentity({
 }
 
 function formatHimaDiscordUsername(profile: any) {
-  return profile?.username ? `@${profile.username}` : "Instagram Account";
+  if (profile?.username) return `@${profile.username}`;
+  if (profile?.name) return profile.name;
+  return "HIMA Musik ISI Yogyakarta";
 }
 
-async function sendDiscordPayload(webhookUrl: string, payload: any) {
+async function sendDiscordPayload(
+  webhookUrl: string,
+  payload: any,
+  files?: Array<{ buffer: Buffer; filename: string; contentType?: string }>,
+) {
+  if (files && files.length > 0) {
+    const formData = new FormData();
+    formData.append("payload_json", JSON.stringify(payload));
+    files.forEach((file, index) => {
+      const blob = new Blob([file.buffer], {
+        type: file.contentType || "image/jpeg",
+      });
+      formData.append(`files[${index}]`, blob, file.filename);
+    });
+
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const responseBody = await response.text();
+      throw new Error(
+        `Discord webhook failed: ${response.status} ${responseBody}`,
+      );
+    }
+    return;
+  }
+
   const response = await fetch(webhookUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
