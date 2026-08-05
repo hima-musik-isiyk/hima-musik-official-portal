@@ -384,14 +384,6 @@ async function buildMessagingEmbeds(entry: any, context: WebhookContext) {
       ? formatHimaDiscordUsername(senderProfile)
       : discordIdentity.username;
 
-    const messageText = (
-      event.message?.text ||
-      event.message?.caption ||
-      event.message?.quick_reply?.payload ||
-      event.message?.quick_reply?.title ||
-      ""
-    ).trim();
-
     const readMid = event.read?.mid;
     const decodedReadMid = decodeMetaBase64(readMid);
 
@@ -408,7 +400,6 @@ async function buildMessagingEmbeds(entry: any, context: WebhookContext) {
       formatField("Event", formatEventLabel(eventType), true),
       formatField("Time", formatDisplayTime(event.timestamp), true),
       formatField("Story", formatStoryReply(storyReply), true),
-      formatField("Message", messageText || null, false),
       formatField(
         "Read Message ID",
         decodedReadMid
@@ -953,7 +944,11 @@ async function fetchInstagramProfile(
   }
 
   // 3. Direct Graph API picture endpoint query if profile_pic missing
-  if (profile && !profile.profile_pic) {
+  if (!profile) {
+    profile = { id };
+  }
+
+  if (!profile.profile_pic) {
     try {
       const picRes = await fetch(
         `https://graph.facebook.com/v25.0/${id}/picture?type=large&redirect=0&access_token=${token}`,
