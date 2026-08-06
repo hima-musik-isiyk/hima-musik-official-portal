@@ -885,61 +885,54 @@ async function fetchInstagramProfile(
   if (!id || !process.env.INSTAGRAM_ACCESS_TOKEN) return null;
 
   const token = process.env.INSTAGRAM_ACCESS_TOKEN;
-  const fields = "id,username,name,profile_pic,profile_picture_url";
 
   let profile: InstagramProfile | null = null;
 
   // 1. Try graph.facebook.com (standard for Instagram Messaging IGSID profile lookup)
   try {
+    const fbFields = "id,name,profile_pic";
     const fbRes = await fetch(
-      `https://graph.facebook.com/v25.0/${id}?fields=${fields}&access_token=${token}`,
+      `https://graph.facebook.com/v25.0/${id}?fields=${fbFields}&access_token=${token}`,
     );
     if (fbRes.ok) {
       const data = await fbRes.json();
-      if (
-        data &&
-        (data.username ||
-          data.name ||
-          data.profile_pic ||
-          data.profile_picture_url)
-      ) {
+      if (data && (data.username || data.name || data.profile_pic)) {
         profile = {
           id: data.id || id,
           username: data.username,
           name: data.name,
-          profile_pic: data.profile_pic || data.profile_picture_url,
+          profile_pic: data.profile_pic,
         };
       }
+    } else {
+      console.warn(`FB Graph API failed for ${id}:`, await fbRes.text());
     }
-  } catch {
-    // Ignore and try fallback
+  } catch (err) {
+    console.warn(`FB Graph API error for ${id}:`, err);
   }
 
   // 2. Fallback to graph.instagram.com if not fetched
   if (!profile) {
     try {
+      const igFields = "id,username,name,profile_picture_url";
       const igRes = await fetch(
-        `https://graph.instagram.com/v25.0/${id}?fields=${fields}&access_token=${token}`,
+        `https://graph.instagram.com/v25.0/${id}?fields=${igFields}&access_token=${token}`,
       );
       if (igRes.ok) {
         const data = await igRes.json();
-        if (
-          data &&
-          (data.username ||
-            data.name ||
-            data.profile_pic ||
-            data.profile_picture_url)
-        ) {
+        if (data && (data.username || data.name || data.profile_picture_url)) {
           profile = {
             id: data.id || id,
             username: data.username,
             name: data.name,
-            profile_pic: data.profile_pic || data.profile_picture_url,
+            profile_pic: data.profile_picture_url,
           };
         }
+      } else {
+        console.warn(`IG Graph API failed for ${id}:`, await igRes.text());
       }
     } catch (error) {
-      console.error("Failed to fetch Instagram profile:", error);
+      console.error("Failed to fetch Instagram profile fallback:", error);
     }
   }
 
