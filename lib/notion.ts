@@ -752,7 +752,7 @@ export const fetchSekretariatCategories = unstable_cache(
 
     try {
       const dataSourceId = await resolveDataSourceIdSafe(categoriesDbId);
-      if (!dataSourceId) return [];
+      if (!dataSourceId) throw new Error("Missing data source ID");
 
       do {
         const response = await getNotionClientAny().dataSources.query({
@@ -766,7 +766,7 @@ export const fetchSekretariatCategories = unstable_cache(
       } while (cursor);
     } catch (error) {
       console.error("[Notion fetchSekretariatCategories] Query failed:", error);
-      return [];
+      throw error;
     }
 
     return results.map((page) => {
@@ -940,14 +940,14 @@ export const fetchKKMGroups = unstable_cache(
       ? await fetchKKMDatabaseIdCached(KKM_PAGE_ID)
       : "36e3b26d-c3be-8065-94be-f94365699c8d";
 
-    if (!activeDbId) return [];
+    if (!activeDbId) throw new Error("Missing active DB ID");
 
     const results: NotionPage[] = [];
     let cursor: string | undefined;
 
     try {
       const dataSourceId = await resolveDataSourceIdSafe(activeDbId);
-      if (!dataSourceId) return [];
+      if (!dataSourceId) throw new Error("Missing data source ID");
 
       do {
         const response = await getNotionClientAny().dataSources.query({
@@ -961,7 +961,7 @@ export const fetchKKMGroups = unstable_cache(
       } while (cursor);
     } catch (error) {
       console.error("[Notion fetchKKMGroups] Query failed:", error);
-      return [];
+      throw error;
     }
 
     const groups: KKMGroup[] = [];
@@ -1147,7 +1147,7 @@ export const fetchKKMEntryBySlug = cache(
       } while (cursor);
     } catch (error) {
       console.error("[Notion fetchKKMEntryBySlug] Query failed:", error);
-      return null;
+      throw error;
     }
 
     if (!matchedPage) return null;
@@ -1420,7 +1420,7 @@ export const fetchKaryaEntries = unstable_cache(
 
     try {
       const dataSourceId = await resolveDataSourceIdSafe(karyaDbId);
-      if (!dataSourceId) return [];
+      if (!dataSourceId) throw new Error("Missing data source ID");
 
       do {
         const response = await getNotionClientAny().dataSources.query({
@@ -1434,7 +1434,7 @@ export const fetchKaryaEntries = unstable_cache(
       } while (cursor);
     } catch (error) {
       console.error("[Notion fetchKaryaEntries] Query failed:", error);
-      return [];
+      throw error;
     }
 
     const filteredPages = results.filter((page) => {
@@ -1636,7 +1636,7 @@ export const fetchEventBySlug = cache(
       } while (cursor);
     } catch (error) {
       console.error("[Notion fetchEventBySlug] Query failed:", error);
-      return null;
+      throw error;
     }
 
     if (!matchedPage) return null;
@@ -1754,7 +1754,7 @@ export const fetchDocBySlug = cache(
       } while (cursor);
     } catch (error) {
       console.error("[Notion fetchDocBySlug] Query failed:", error);
-      return null;
+      throw error;
     }
 
     const page = matchedPage;
@@ -1891,7 +1891,7 @@ export async function searchDocs(query: string): Promise<
     return results;
   } catch (error) {
     console.error("[Notion searchDocs] Search failed:", error);
-    return [];
+    throw error;
   }
 }
 
@@ -1921,7 +1921,7 @@ export async function fetchModularDatabase(
   dbId: string,
 ): Promise<BerandaModularItem[]> {
   const dataSourceId = await resolveDataSourceIdSafe(dbId);
-  if (!dataSourceId) return [];
+  if (!dataSourceId) throw new Error("Missing data source ID");
 
   const results: NotionPage[] = [];
   let cursor: string | undefined;
@@ -1942,7 +1942,7 @@ export async function fetchModularDatabase(
       `[Notion fetchModularDatabase] Query failed for ${dbId}:`,
       error,
     );
-    return [];
+    throw error;
   }
 
   return results
@@ -2644,7 +2644,7 @@ export const fetchCurrentRecruitmentTimelineCached = unstable_cache(
       };
     } catch (error) {
       console.error("[fetchCurrentRecruitmentTimelineCached] Error:", error);
-      return null;
+      throw error;
     }
   },
   ["notion-current-recruitment-timeline"],

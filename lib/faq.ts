@@ -160,7 +160,7 @@ async function fetchFAQEntriesRaw(): Promise<FAQEntry[]> {
     );
   } catch (error) {
     console.error("[Notion FAQ] Database query failed:", error);
-    return [];
+    throw error;
   }
 }
 

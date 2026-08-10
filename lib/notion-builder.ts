@@ -144,7 +144,6 @@ function getTitle(page: NotionPage, name: string): string {
 function getRichText(page: NotionPage, name: string): string {
   const prop = findProp(page, name);
   if (prop?.type === "rich_text" && prop.rich_text) {
-     
     return prop.rich_text
       .map((t: any) => {
         if (t.href) return t.href;
@@ -160,7 +159,6 @@ function getRichText(page: NotionPage, name: string): string {
 function getRichTextOrMentionId(page: NotionPage, name: string): string {
   const prop = findProp(page, name);
   if (prop?.type === "rich_text" && prop.rich_text) {
-     
     return prop.rich_text
       .map((t: any) => {
         if (t.type === "mention" && t.mention) {
@@ -250,7 +248,7 @@ async function queryNotionDataSource(
 
 async function queryAll(databaseId: string): Promise<NotionPage[]> {
   const dataSourceId = await resolveDataSourceIdSafe(databaseId);
-  if (!dataSourceId) return [];
+  if (!dataSourceId) throw new Error("Missing data source ID");
 
   const results: NotionPage[] = [];
   let cursor: string | undefined;
