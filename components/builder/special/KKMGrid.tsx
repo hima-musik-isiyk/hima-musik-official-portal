@@ -148,8 +148,6 @@ function SocialIcon({ platform }: { platform: SocialMeta["platform"] }) {
 }
 
 function KKMCard({ group }: { group: KKMGroup }) {
-  const [isLogoLoading, setIsLogoLoading] = useState(Boolean(group.logoUrl));
-
   return (
     <div
       className="group relative flex flex-col overflow-hidden rounded-[var(--radius-action)] border border-white/5 p-7 transition-colors duration-500 hover:bg-stone-900/10"
@@ -167,9 +165,6 @@ function KKMCard({ group }: { group: KKMGroup }) {
         <div className="mb-5 flex items-start gap-5">
           {group.logoUrl && (
             <div className="relative shrink-0">
-              {isLogoLoading && (
-                <LoadingSkeleton className="absolute inset-0 z-10 h-14 w-14 rounded-lg" />
-              )}
               <Image
                 src={toCachedImageUrl(group.logoUrl)}
                 alt={`${group.name} logo`}
@@ -177,11 +172,7 @@ function KKMCard({ group }: { group: KKMGroup }) {
                 width={56}
                 height={56}
                 unoptimized
-                className={`h-14 w-14 rounded-lg border border-white/10 object-cover transition-opacity duration-300 ${
-                  isLogoLoading ? "opacity-0" : "opacity-100"
-                }`}
-                onLoad={() => setIsLogoLoading(false)}
-                onError={() => setIsLogoLoading(false)}
+                className="h-14 w-14 rounded-lg border border-white/10 object-cover"
               />
             </div>
           )}
