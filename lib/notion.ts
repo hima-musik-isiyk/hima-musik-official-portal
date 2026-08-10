@@ -2380,14 +2380,31 @@ export interface RedirectEntry {
   destinationUrl: string;
 }
 
+const DEFAULT_REDIRECT_ENTRIES: RedirectEntry[] = [
+  {
+    id: "default-agenda-submit",
+    name: "Formulir Agenda",
+    sourcePath: "/agenda/submit",
+    destinationUrl:
+      "https://pengajuan-himamusik.notion.site/36e3b26dc3be80a8955bcbf8933c8cdb",
+  },
+  {
+    id: "default-karya-submit",
+    name: "Formulir Karya",
+    sourcePath: "/karya/submit",
+    destinationUrl:
+      "https://pengajuan-himamusik.notion.site/36e3b26dc3be8006bcd0c2dc60ff54f2",
+  },
+];
+
 export const fetchRedirects = unstable_cache(
   async (): Promise<RedirectEntry[]> => {
     try {
       const activeDbId = DB_REDIRECT;
-      if (!activeDbId) return [];
+      if (!activeDbId) return DEFAULT_REDIRECT_ENTRIES;
 
       const dataSourceId = await resolveDataSourceIdSafe(activeDbId);
-      if (!dataSourceId) return [];
+      if (!dataSourceId) return DEFAULT_REDIRECT_ENTRIES;
 
       const results: NotionPage[] = [];
       let cursor: string | undefined;
@@ -2403,23 +2420,42 @@ export const fetchRedirects = unstable_cache(
           : undefined;
       } while (cursor);
 
-      return results
+      const parsed = results
         .map((page) => {
           const name = getTitleProperty(page, "Name") || getTitle(page);
-          const sourcePath = getRichText(page, "Modified");
+          const rawSource = getRichText(page, "Modified");
           const destinationUrl = getRichText(page, "Destination URL");
+
+          let sourcePath = rawSource.trim();
+          if (sourcePath && !sourcePath.startsWith("/")) {
+            sourcePath = `/${sourcePath}`;
+          }
 
           return {
             id: page.id,
             name,
-            sourcePath: sourcePath.trim(),
+            sourcePath,
             destinationUrl: destinationUrl.trim(),
           };
         })
         .filter((entry) => entry.sourcePath && entry.destinationUrl);
+
+      // Merge defaults if not overridden by Notion entries
+      const merged = [...parsed];
+      for (const def of DEFAULT_REDIRECT_ENTRIES) {
+        if (
+          !merged.some(
+            (m) => m.sourcePath.toLowerCase() === def.sourcePath.toLowerCase(),
+          )
+        ) {
+          merged.push(def);
+        }
+      }
+
+      return merged;
     } catch (error) {
       console.error("[Notion fetchRedirects] Query failed:", error);
-      return [];
+      return DEFAULT_REDIRECT_ENTRIES;
     }
   },
   ["notion-redirects"],

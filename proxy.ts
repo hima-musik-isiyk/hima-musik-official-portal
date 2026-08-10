@@ -43,6 +43,17 @@ async function fetchRedirectsCached(apiUrl: URL): Promise<RedirectEntry[]> {
   return redirectsFetchPromise;
 }
 
+const STATIC_REDIRECT_FALLBACKS: Record<string, string> = {
+  "/agenda/submit":
+    "https://pengajuan-himamusik.notion.site/36e3b26dc3be80a8955bcbf8933c8cdb",
+  "/agenda/submit/":
+    "https://pengajuan-himamusik.notion.site/36e3b26dc3be80a8955bcbf8933c8cdb",
+  "/karya/submit":
+    "https://pengajuan-himamusik.notion.site/36e3b26dc3be8006bcd0c2dc60ff54f2",
+  "/karya/submit/":
+    "https://pengajuan-himamusik.notion.site/36e3b26dc3be8006bcd0c2dc60ff54f2",
+};
+
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -51,7 +62,10 @@ export async function proxy(request: NextRequest) {
     const redirects = await fetchRedirectsCached(apiUrl);
 
     const match = redirects.find((entry) => {
-      const normalizedSource = entry.sourcePath.trim().toLowerCase();
+      let normalizedSource = entry.sourcePath.trim().toLowerCase();
+      if (normalizedSource && !normalizedSource.startsWith("/")) {
+        normalizedSource = `/${normalizedSource}`;
+      }
       const normalizedPath = pathname.trim().toLowerCase();
 
       return (
@@ -71,6 +85,13 @@ export async function proxy(request: NextRequest) {
   } catch (error) {
     // Fail-safe: log the error and allow the request to proceed without blocking
     console.error("[Proxy Redirects Error]:", error);
+  }
+
+  // Static fallback redirects check for core form submission endpoints
+  const fallbackDestination =
+    STATIC_REDIRECT_FALLBACKS[pathname.trim().toLowerCase()];
+  if (fallbackDestination) {
+    return NextResponse.redirect(fallbackDestination, 307);
   }
 
   const requestHeaders = new Headers(request.headers);

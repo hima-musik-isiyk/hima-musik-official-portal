@@ -25,9 +25,28 @@ export const GenericButton: React.FC<GenericButtonProps> = ({
   const labelKey = value1.trim().toLowerCase();
   const rawHref = href?.trim() ?? "";
   const rawValue3 = value3?.trim() ?? "";
+  const rawValue3Lower = rawValue3.toLowerCase();
 
   let resolvedTarget = rawHref;
-  if (!resolvedTarget || resolvedTarget === "#") {
+
+  // Enforce submit endpoints for Agenda and Karya buttons
+  if (
+    labelKey.includes("formulir agenda") ||
+    labelKey.includes("submit agenda") ||
+    labelKey.includes("ajukan agenda") ||
+    rawValue3Lower.includes("formulir agenda") ||
+    rawValue3Lower.includes("36e3b26dc3be80a8955bcbf8933c8cdb")
+  ) {
+    resolvedTarget = "/agenda/submit";
+  } else if (
+    labelKey.includes("formulir karya") ||
+    labelKey.includes("submit karya") ||
+    labelKey.includes("ajukan karya") ||
+    rawValue3Lower.includes("formulir karya") ||
+    rawValue3Lower.includes("36e3b26dc3be8006bcd0c2dc60ff54f2")
+  ) {
+    resolvedTarget = "/karya/submit";
+  } else if (!resolvedTarget || resolvedTarget === "#") {
     if (
       rawValue3.startsWith("/") ||
       rawValue3.startsWith("http://") ||

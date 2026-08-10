@@ -103,6 +103,40 @@ export function resolveCmsHref(
   }
 
   const key = matchKey(raw);
+
+  // Check explicit submission redirects
+  if (
+    key.includes("formulir agenda") ||
+    key.includes("submit agenda") ||
+    key.includes("36e3b26dc3be80a8955bcbf8933c8cdb")
+  ) {
+    return "/agenda/submit";
+  }
+  if (
+    key.includes("formulir karya") ||
+    key.includes("submit karya") ||
+    key.includes("36e3b26dc3be8006bcd0c2dc60ff54f2")
+  ) {
+    return "/karya/submit";
+  }
+
+  // Check CMS Redirects database entries
+  if (cmsData?.redirects && cmsData.redirects.length > 0) {
+    const redirectMatch = cmsData.redirects.find((r) => {
+      const rName = matchKey(r.name || "");
+      const rSource = matchKey(r.destinationUrl ? r.id : "");
+      return rName === key || rSource === key;
+    });
+
+    if (redirectMatch?.destinationUrl) {
+      // Return source path if present, otherwise direct destination
+      return redirectMatch.name.toLowerCase().includes("agenda")
+        ? "/agenda/submit"
+        : redirectMatch.name.toLowerCase().includes("karya")
+          ? "/karya/submit"
+          : redirectMatch.destinationUrl;
+    }
+  }
   const contentPages = cmsData.pages.filter((p) => p.type !== "Redirect");
 
   const normalizedId = normalizeNotionId(raw);
