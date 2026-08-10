@@ -137,12 +137,11 @@ function SocialIcon({ platform }: { platform: SocialMeta["platform"] }) {
 
   return (
     <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="1.5" />
       <path
-        d="M14 5h5v5M10 14 19 5M19 13v5H5V5h5"
+        d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"
         stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+        strokeWidth="1.5"
       />
     </svg>
   );
@@ -164,73 +163,95 @@ function KKMCard({ group }: { group: KKMGroup }) {
         className="absolute inset-0 z-10"
       />
 
-      <div className="relative z-0 mb-8 flex flex-1 items-start gap-5">
-        {group.logoUrl && (
-          <div className="relative shrink-0">
-            {isLogoLoading && (
-              <LoadingSkeleton className="absolute inset-0 z-10 h-14 w-14 rounded-lg" />
-            )}
-            <Image
-              src={toCachedImageUrl(group.logoUrl)}
-              alt={`${group.name} logo`}
-              loader={passthroughLoader}
-              width={56}
-              height={56}
-              unoptimized
-              className={`h-14 w-14 rounded-lg border border-white/10 object-cover transition-opacity duration-300 ${
-                isLogoLoading ? "opacity-0" : "opacity-100"
-              }`}
-              onLoad={() => setIsLogoLoading(false)}
-              onError={() => setIsLogoLoading(false)}
-            />
-          </div>
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="mb-4">
+      <div className="relative z-0 mb-8 flex flex-1 flex-col">
+        <div className="mb-5 flex items-start gap-5">
+          {group.logoUrl && (
+            <div className="relative shrink-0">
+              {isLogoLoading && (
+                <LoadingSkeleton className="absolute inset-0 z-10 h-14 w-14 rounded-lg" />
+              )}
+              <Image
+                src={toCachedImageUrl(group.logoUrl)}
+                alt={`${group.name} logo`}
+                loader={passthroughLoader}
+                width={56}
+                height={56}
+                unoptimized
+                className={`h-14 w-14 rounded-lg border border-white/10 object-cover transition-opacity duration-300 ${
+                  isLogoLoading ? "opacity-0" : "opacity-100"
+                }`}
+                onLoad={() => setIsLogoLoading(false)}
+                onError={() => setIsLogoLoading(false)}
+              />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
             <h2 className="group-hover:text-gold-400 font-serif text-xl text-white transition-colors md:text-2xl">
               {group.name}
             </h2>
+            {group.tagline && (
+              <p className="text-gold-500/80 mt-1 mb-3 text-xs font-medium tracking-wide italic">
+                &ldquo;{group.tagline}&rdquo;
+              </p>
+            )}
           </div>
-
-          {group.tagline && (
-            <p className="text-gold-500/80 mb-3 text-xs font-medium tracking-wide italic">
-              &ldquo;{group.tagline}&rdquo;
-            </p>
-          )}
-
-          {/* Description */}
-          <p className="text-[0.8125rem] leading-relaxed text-stone-500 transition-colors group-hover:text-stone-400">
-            {group.description}
-          </p>
         </div>
+
+        {/* Description */}
+        <p className="text-[0.8125rem] leading-relaxed text-stone-500 transition-colors group-hover:text-stone-400">
+          {group.description}
+        </p>
       </div>
 
-      {/* Footer: Social + Established */}
-      <div className="relative z-10 mt-auto border-t border-white/5 pt-5">
-        {group.socialLinks.length > 0 && (
-          <div className="space-y-2">
-            {group.socialLinks.map((link) => {
-              const social = getSocialMeta(link);
-
-              return (
-                <a
-                  key={link}
-                  href={social.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group/social relative z-20 flex items-center gap-2 text-xs text-stone-500 transition-colors hover:text-white"
-                >
-                  <span className="text-gold-500/80 group-hover/social:text-gold-400 transition-colors">
-                    <SocialIcon platform={social.platform} />
-                  </span>
-                  <span className="group-hover/social:text-stone-300">
-                    {social.label}
-                  </span>
-                </a>
-              );
-            })}
+      {/* Footer: Social + Foto */}
+      <div className="relative z-10 -mx-7 mt-auto -mb-7 aspect-video border-t border-white/5">
+        {group.fotoUrl && (
+          <div
+            className="pointer-events-none absolute -top-[100px] right-0 bottom-0 left-0 z-[-1]"
+            style={{
+              WebkitMaskImage:
+                "linear-gradient(to bottom, transparent 0px, transparent 20px, rgba(0,0,0,0.05) 50px, rgba(0,0,0,0.3) 80px, black 100px, black 100%)",
+              maskImage:
+                "linear-gradient(to bottom, transparent 0px, transparent 20px, rgba(0,0,0,0.05) 50px, rgba(0,0,0,0.3) 80px, black 100px, black 100%)",
+            }}
+          >
+            <Image
+              src={toCachedImageUrl(group.fotoUrl)}
+              alt={`${group.name} photo`}
+              loader={passthroughLoader}
+              fill
+              unoptimized
+              className="object-cover opacity-50 transition-opacity duration-500 group-hover:opacity-80"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a]/90 via-[#0a0a0a]/50 to-transparent" />
           </div>
         )}
+        <div className="relative z-20 flex h-full w-full flex-col justify-end p-7 pt-5">
+          {group.socialLinks.length > 0 && (
+            <div className="space-y-2">
+              {group.socialLinks.map((link) => {
+                const social = getSocialMeta(link);
+
+                return (
+                  <a
+                    key={link}
+                    href={social.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group/social relative z-20 flex items-center gap-2 text-xs text-stone-300 transition-colors hover:text-white"
+                  >
+                    <span className="text-gold-500/80 group-hover/social:text-gold-400 transition-colors">
+                      <SocialIcon platform={social.platform} />
+                    </span>
+                    <span className="drop-shadow-md group-hover/social:text-stone-100">
+                      {social.label}
+                    </span>
+                  </a>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

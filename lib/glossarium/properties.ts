@@ -210,7 +210,9 @@ export const PROP_KKM = {
   INSTAGRAM: "Instagram",
   YOUTUBE: "YouTube",
   TIKTOK: "TikTok",
+  LAINNYA: "Lainnya",
   LOGO: "Logo",
+  FOTO_KKM: "Foto KKM",
 } as const;
 
 // ──────────────────────────────────────────────────────────────

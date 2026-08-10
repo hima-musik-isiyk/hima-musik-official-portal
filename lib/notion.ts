@@ -21,6 +21,7 @@ import {
   DB_STRUKTUR_ORGANISASI,
   DB_TAHAPAN_REKRUTMEN,
   DB_TUGAS_UTAMA_DIVISI,
+  PROP_KKM,
 } from "./glossarium";
 import type { KKMGroup } from "./kkm-data";
 import {
@@ -983,11 +984,13 @@ export const fetchKKMGroups = unstable_cache(
       const description = getRichText(page, "Deskripsi Singkat") || "";
 
       const logoUrl = getFiles(page, "Logo")[0] || null;
+      const fotoUrl = getFiles(page, PROP_KKM.FOTO_KKM)[0] || null;
       const instagram = getUrl(page, "Instagram") || "";
       const tiktok = getUrl(page, "TikTok") || "";
       const youtube = getUrl(page, "YouTube") || "";
+      const lainnya = getUrl(page, PROP_KKM.LAINNYA) || "";
 
-      let socialLinks = [instagram, tiktok, youtube].filter(Boolean);
+      let socialLinks = [instagram, tiktok, youtube, lainnya].filter(Boolean);
       if (socialLinks.length === 0) {
         const contacts =
           getRichText(page, "Kontak Unit") ||
@@ -1012,9 +1015,11 @@ export const fetchKKMGroups = unstable_cache(
         tagline,
         description,
         logoUrl,
+        fotoUrl,
         instagram,
         tiktok,
         youtube,
+        lainnya,
         socialLinks,
         order,
       });

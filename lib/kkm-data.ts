@@ -13,12 +13,16 @@ export interface KKMGroup {
   description: string;
   /** First file URL from the `Logo` files property, or null */
   logoUrl: string | null;
+  /** First file URL from the `Foto KKM` files property, or null */
+  fotoUrl: string | null;
   /** `Instagram` url property */
   instagram: string;
   /** `TikTok` url property */
   tiktok: string;
   /** `YouTube` url property */
   youtube: string;
+  /** `Lainnya` url property */
+  lainnya: string;
   /**
    * Derived convenience array of non-empty social URLs
    * ([instagram, tiktok, youtube] filtered for truthy values).
