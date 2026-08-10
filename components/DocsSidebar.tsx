@@ -28,12 +28,15 @@ function groupByCategory(docs: DocMeta[]): GroupedDocs {
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
+import { getCanonicalClientPath } from "@/lib/cms-route";
+
 interface DocsSidebarProps {
   docs: DocMeta[];
 }
 
 export default function DocsSidebar({ docs }: DocsSidebarProps) {
-  const pathname = usePathname();
+  const rawPathname = usePathname();
+  const pathname = getCanonicalClientPath(rawPathname);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const lastPathnameRef = useRef(pathname);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(

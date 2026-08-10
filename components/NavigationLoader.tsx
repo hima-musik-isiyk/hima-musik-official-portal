@@ -3,6 +3,8 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { getCanonicalClientPath } from "@/lib/cms-route";
+
 /**
  * Full-screen navigation loading overlay.
  *
@@ -12,7 +14,8 @@ import { useEffect, useRef, useState } from "react";
  * - Renders nothing in the DOM when fully hidden (pointer-events: none always).
  */
 export default function NavigationLoader() {
-  const pathname = usePathname();
+  const rawPathname = usePathname();
+  const pathname = getCanonicalClientPath(rawPathname);
   const [visible, setVisible] = useState(false);
   const [mounted, setMounted] = useState(false);
   const prevPathname = useRef(pathname);
@@ -38,8 +41,10 @@ export default function NavigationLoader() {
 
       if (isSameOrigin && !isHashOnly && !hasModifier && !opensNewTab) {
         // Only show loader if we're actually navigating to a different path
-        const targetPath = href.split("?")[0].split("#")[0];
-        const currentPath = window.location.pathname;
+        const targetPath = getCanonicalClientPath(
+          href.split("?")[0].split("#")[0],
+        );
+        const currentPath = getCanonicalClientPath(window.location.pathname);
         if (targetPath !== currentPath) {
           pendingNav.current = true;
           setVisible(true);

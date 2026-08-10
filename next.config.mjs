@@ -21,8 +21,6 @@ const nextConfig = {
   },
   async redirects() {
     return [
-      // Preview mode: bare /prev root redirects to home
-      { source: "/prev", destination: "/", permanent: false },
       { source: "/events", destination: "/agenda", permanent: true },
       {
         source: "/events/:slug",

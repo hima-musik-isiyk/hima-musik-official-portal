@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useEffect, useRef, useState } from "react";
 
+import { getCanonicalClientPath } from "@/lib/cms-route";
 import {
   fetchDivisionsOnce,
   readCachedDivisions,
@@ -92,7 +93,8 @@ const Footer: React.FC<{ hiddenFooterPaths?: string[] }> = ({
   hiddenFooterPaths = [],
 }) => {
   const [currentYear, setCurrentYear] = useState(2026);
-  const pathname = usePathname();
+  const rawPathname = usePathname();
+  const pathname = getCanonicalClientPath(rawPathname);
   const scopeRef = useViewEntrance(pathname);
   const [divisions, setDivisions] = useState(staticDivisions);
 

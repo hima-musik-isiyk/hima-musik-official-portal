@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
+import { getCanonicalClientPath } from "@/lib/cms-route";
 import { FEATURES } from "@/lib/feature-flags";
 import { getCmsGsapEasing, gsap } from "@/lib/gsap";
 import {
@@ -103,8 +104,8 @@ const Navigation: React.FC<NavigationProps> = ({
   );
   const ease = getCmsGsapEasing();
 
-  const pathname = usePathname();
-  const currentPath = pathname ?? "/";
+  const rawPathname = usePathname();
+  const currentPath = getCanonicalClientPath(rawPathname);
   const router = useRouter();
 
   const navItems = React.useMemo(() => {
@@ -165,7 +166,7 @@ const Navigation: React.FC<NavigationProps> = ({
       context.revert();
       window.removeEventListener("toggleDocsSidebar", handleSidebarToggle);
     };
-  }, [pathname, ease]);
+  }, [currentPath, ease]);
 
   /* ------ Prefetch all navigation routes on mount ----- */
   useEffect(() => {

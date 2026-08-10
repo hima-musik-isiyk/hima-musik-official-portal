@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import React, { useRef } from "react";
 
+import { getCanonicalClientPath } from "@/lib/cms-route";
 import { getCmsGsapEasing, gsap } from "@/lib/gsap";
 import useIsomorphicLayoutEffect from "@/lib/useIsomorphicLayoutEffect";
 import {
@@ -42,7 +43,8 @@ const isDecorativeNode = (element: HTMLElement) => {
 export default function RouteEntranceAnimator({
   children,
 }: RouteEntranceAnimatorProps) {
-  const pathname = usePathname() ?? "/";
+  const rawPathname = usePathname();
+  const pathname = getCanonicalClientPath(rawPathname);
   const scopeRef = useRef<HTMLDivElement | null>(null);
 
   useIsomorphicLayoutEffect(() => {
