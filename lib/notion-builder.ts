@@ -144,8 +144,13 @@ function getTitle(page: NotionPage, name: string): string {
 function getRichText(page: NotionPage, name: string): string {
   const prop = findProp(page, name);
   if (prop?.type === "rich_text" && prop.rich_text) {
+     
     return prop.rich_text
-      .map((t: RichTextFragment) => t.plain_text)
+      .map((t: any) => {
+        if (t.href) return t.href;
+        if (t.text?.link?.url) return t.text.link.url;
+        return t.plain_text;
+      })
       .join("")
       .trim();
   }
@@ -155,28 +160,25 @@ function getRichText(page: NotionPage, name: string): string {
 function getRichTextOrMentionId(page: NotionPage, name: string): string {
   const prop = findProp(page, name);
   if (prop?.type === "rich_text" && prop.rich_text) {
+     
     return prop.rich_text
-      .map(
-        (t: {
-          type?: string;
-          plain_text?: string;
-          mention?: {
-            type?: string;
-            database?: { id: string };
-            page?: { id: string };
-          };
-        }) => {
-          if (t.type === "mention" && t.mention) {
-            if (t.mention.type === "database" && t.mention.database) {
-              return t.mention.database.id;
-            }
-            if (t.mention.type === "page" && t.mention.page) {
-              return t.mention.page.id;
-            }
+      .map((t: any) => {
+        if (t.type === "mention" && t.mention) {
+          if (t.mention.type === "database" && t.mention.database) {
+            return t.mention.database.id;
           }
-          return t.plain_text;
-        },
-      )
+          if (t.mention.type === "page" && t.mention.page) {
+            return t.mention.page.id;
+          }
+        }
+        if (t.href) {
+          return t.href;
+        }
+        if (t.text?.link?.url) {
+          return t.text.link.url;
+        }
+        return t.plain_text;
+      })
       .join("")
       .trim();
   }

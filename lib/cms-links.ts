@@ -49,9 +49,47 @@ export function resolveCmsHref(
     raw.startsWith("/") ||
     raw.startsWith("http://") ||
     raw.startsWith("https://") ||
-    raw.startsWith("mailto:")
+    raw.startsWith("mailto:") ||
+    raw.startsWith("tel:")
   ) {
     return raw;
+  }
+
+  if (raw.startsWith("www.")) {
+    return `https://${raw}`;
+  }
+
+  // Handle Notion URLs (e.g. https://www.notion.so/Page-Name-1a2b3c4d5e...)
+  if (raw.includes("notion.so/")) {
+    const hexMatch = raw.match(
+      /([0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i,
+    );
+    if (hexMatch) {
+      const extractedId = normalizeNotionId(hexMatch[1]);
+      const contentPagesForNotion = cmsData.pages.filter(
+        (p) => p.type !== "Redirect",
+      );
+      const pageMatch = contentPagesForNotion.find((p) => p.id === extractedId);
+      if (pageMatch) {
+        return normalizePagePath(pageMatch.slug || "/");
+      }
+      const allSectionsForNotion = flattenSections(contentPagesForNotion);
+      const sectionMatch = allSectionsForNotion.find(
+        (s) => s.id === extractedId,
+      );
+      if (sectionMatch && sectionMatch.pageSlug) {
+        return `${sectionMatch.pageSlug}${normalizeSectionHash(sectionMatch.slug || "")}`;
+      }
+    }
+  }
+
+  // Handle bare domain links (e.g. forms.gle/xyz, docs.google.com/forms/...)
+  if (
+    /^(?:[a-zA-Z0-9-]+\.)+(?:com|org|net|io|co|gle|id|me|app|dev|link|site|gov|edu|gg|form)(?:\/[^\s]*)?$/i.test(
+      raw,
+    )
+  ) {
+    return `https://${raw}`;
   }
 
   if (raw.startsWith("#")) {
@@ -101,6 +139,13 @@ export function resolveCmsHref(
 
   if (sectionMatch && sectionMatch.pageSlug) {
     return `${sectionMatch.pageSlug}${normalizeSectionHash(sectionMatch.slug || "")}`;
+  }
+
+  // If raw contains slashes or looks like a URL/path fallback, preserve it
+  if (raw.includes("/")) {
+    return raw.startsWith("http") || raw.startsWith("/")
+      ? raw
+      : `https://${raw}`;
   }
 
   return "";

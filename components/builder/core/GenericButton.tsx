@@ -15,6 +15,7 @@ interface GenericButtonProps {
 export const GenericButton: React.FC<GenericButtonProps> = ({
   value1,
   value2,
+  value3,
   href,
   variation1,
   className = "",
@@ -22,14 +23,49 @@ export const GenericButton: React.FC<GenericButtonProps> = ({
   const isDescOnRight =
     variation1 === "1" || variation1?.toLowerCase().includes("description");
   const labelKey = value1.trim().toLowerCase();
+  const rawHref = href?.trim() ?? "";
+  const rawValue3 = value3?.trim() ?? "";
+
+  let resolvedTarget = rawHref;
+  if (!resolvedTarget || resolvedTarget === "#") {
+    if (
+      rawValue3.startsWith("/") ||
+      rawValue3.startsWith("http://") ||
+      rawValue3.startsWith("https://") ||
+      rawValue3.startsWith("mailto:")
+    ) {
+      resolvedTarget = rawValue3;
+    } else if (rawValue3.startsWith("www.")) {
+      resolvedTarget = `https://${rawValue3}`;
+    } else if (
+      /^(?:[a-zA-Z0-9-]+\.)+(?:com|org|net|io|co|gle|id|me|app|dev|link|site|gov|edu|gg|form)(?:\/[^\s]*)?$/i.test(
+        rawValue3,
+      )
+    ) {
+      resolvedTarget = `https://${rawValue3}`;
+    } else if (rawValue3) {
+      resolvedTarget = rawValue3.startsWith("#")
+        ? rawValue3
+        : rawValue3.startsWith("/")
+          ? rawValue3
+          : `/${rawValue3}`;
+    }
+  }
+
   const fallbackHref = labelKey.includes("formulir pendaftaran")
     ? "/pendaftaran/form"
     : "#";
-  const linkHref = href?.trim() || fallbackHref;
+  const linkHref = resolvedTarget || fallbackHref;
+  const isExternal =
+    linkHref.startsWith("http://") ||
+    linkHref.startsWith("https://") ||
+    linkHref.startsWith("mailto:");
 
   const btn = (
     <Link
       href={linkHref}
+      target={isExternal ? "_blank" : undefined}
+      rel={isExternal ? "noopener noreferrer" : undefined}
       className="btn-primary inline-flex shrink-0"
       data-animate="up"
     >

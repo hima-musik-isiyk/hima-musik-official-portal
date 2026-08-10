@@ -15,10 +15,44 @@ interface GenericButtonSpanProps {
 export const GenericButtonSpan: React.FC<GenericButtonSpanProps> = ({
   value1,
   value2,
+  value3,
   href,
   className = "",
 }) => {
-  const linkHref = href?.trim() || "";
+  const rawHref = href?.trim() ?? "";
+  const rawValue3 = value3?.trim() ?? "";
+
+  let resolvedTarget = rawHref;
+  if (!resolvedTarget || resolvedTarget === "#") {
+    if (
+      rawValue3.startsWith("/") ||
+      rawValue3.startsWith("http://") ||
+      rawValue3.startsWith("https://") ||
+      rawValue3.startsWith("mailto:")
+    ) {
+      resolvedTarget = rawValue3;
+    } else if (rawValue3.startsWith("www.")) {
+      resolvedTarget = `https://${rawValue3}`;
+    } else if (
+      /^(?:[a-zA-Z0-9-]+\.)+(?:com|org|net|io|co|gle|id|me|app|dev|link|site|gov|edu|gg|form)(?:\/[^\s]*)?$/i.test(
+        rawValue3,
+      )
+    ) {
+      resolvedTarget = `https://${rawValue3}`;
+    } else if (rawValue3) {
+      resolvedTarget = rawValue3.startsWith("#")
+        ? rawValue3
+        : rawValue3.startsWith("/")
+          ? rawValue3
+          : `/${rawValue3}`;
+    }
+  }
+
+  const linkHref = resolvedTarget;
+  const isExternal =
+    linkHref.startsWith("http://") ||
+    linkHref.startsWith("https://") ||
+    linkHref.startsWith("mailto:");
 
   const inner = (
     <>
@@ -56,6 +90,8 @@ export const GenericButtonSpan: React.FC<GenericButtonSpanProps> = ({
     return (
       <Link
         href={linkHref}
+        target={isExternal ? "_blank" : undefined}
+        rel={isExternal ? "noopener noreferrer" : undefined}
         data-animate="up"
         className={`group relative flex cursor-pointer flex-col justify-between p-10 transition-colors duration-300 hover:bg-stone-900/50 md:p-12 ${className}`}
       >
