@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import React from "react";
 
 import { PageBuilder } from "@/components/builder/PageBuilder";
+import { PreviewBar } from "@/components/preview/PreviewBar";
+import { getIsPreviewMode } from "@/lib/cms-route";
 import { fetchEventBySlug, fetchKKMGroups } from "@/lib/notion";
 
 interface EventDetailRouteProps {
@@ -11,7 +13,7 @@ interface EventDetailRouteProps {
 export default async function EventDetailRepostRoute({
   params,
 }: EventDetailRouteProps) {
-  const { slug } = await params;
+  const [{ slug }, isPreview] = await Promise.all([params, getIsPreviewMode()]);
   const result = await fetchEventBySlug(slug, { allowPreview: true }); // Allow draft/active
 
   if (!result) return notFound();
@@ -31,16 +33,19 @@ export default async function EventDetailRepostRoute({
   const forcedMeta = { ...result.meta, status: "Active" };
 
   return (
-    <PageBuilder
-      pathname={`/agenda/repost/${slug}`}
-      overrideComponent="Event Detail"
-      injectedProps={{
-        "Event Detail": {
-          meta: forcedMeta,
-          blocks: result.blocks,
-          kkmHref,
-        },
-      }}
-    />
+    <>
+      <PageBuilder
+        pathname={`/agenda/repost/${slug}`}
+        overrideComponent="Event Detail"
+        injectedProps={{
+          "Event Detail": {
+            meta: forcedMeta,
+            blocks: result.blocks,
+            kkmHref,
+          },
+        }}
+      />
+      {isPreview && <PreviewBar />}
+    </>
   );
 }
