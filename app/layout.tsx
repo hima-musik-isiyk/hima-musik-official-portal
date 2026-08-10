@@ -11,6 +11,7 @@ import Footer from "../components/Footer";
 import LegacyHashRedirectWrapper from "../components/LegacyHashRedirectWrapper";
 import LocatorInitializer from "../components/LocatorInitializer";
 import Navigation from "../components/Navigation";
+import NavigationLoader from "../components/NavigationLoader";
 import RouteEntranceAnimator from "../components/RouteEntranceAnimator";
 import {
   fetchContainerCMSCached,
@@ -92,6 +93,9 @@ export default async function RootLayout({ children }: RootLayoutProps) {
         <CommandPalette />
         <Suspense fallback={null}>
           <CmsLiveRefresh />
+        </Suspense>
+        <Suspense fallback={null}>
+          <NavigationLoader />
         </Suspense>
         <main className="relative z-3 grow pt-20 pb-12 md:pb-16">
           <Suspense>
