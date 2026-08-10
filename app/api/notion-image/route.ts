@@ -30,6 +30,67 @@ function safeContentType(input: string | null): string {
   return input;
 }
 
+/**
+ * Sniff image content-type from magic bytes (file signature).
+ * Falls back to the hint (e.g. from HTTP Content-Type) when unrecognised.
+ * This avoids relying on Supabase Blob.type which may return empty string or
+ * 'application/octet-stream', causing browsers to skip ICC color-profile
+ * management and rendering wide-gamut (Display P3) images with washed-out colors.
+ */
+function sniffContentTypeFromBytes(
+  buf: Buffer,
+  hint = "application/octet-stream",
+): string {
+  if (buf.length < 4) return hint;
+
+  // JPEG: FF D8 FF
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff)
+    return "image/jpeg";
+
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47)
+    return "image/png";
+
+  // GIF: 47 49 46 38
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x38)
+    return "image/gif";
+
+  // WebP: 52 49 46 46 ?? ?? ?? ?? 57 45 42 50
+  if (
+    buf.length >= 12 &&
+    buf[0] === 0x52 &&
+    buf[1] === 0x49 &&
+    buf[2] === 0x46 &&
+    buf[3] === 0x46 &&
+    buf[8] === 0x57 &&
+    buf[9] === 0x45 &&
+    buf[10] === 0x42 &&
+    buf[11] === 0x50
+  )
+    return "image/webp";
+
+  // AVIF / HEIF: ftyp box at offset 4
+  if (
+    buf.length >= 12 &&
+    buf[4] === 0x66 &&
+    buf[5] === 0x74 &&
+    buf[6] === 0x79 &&
+    buf[7] === 0x70
+  ) {
+    const brand = buf.toString("ascii", 8, 12);
+    if (brand.startsWith("avif") || brand.startsWith("avis"))
+      return "image/avif";
+    if (brand.startsWith("heic") || brand.startsWith("mif1"))
+      return "image/heic";
+  }
+
+  // SVG: starts with '<' (text)
+  if (buf[0] === 0x3c) return "image/svg+xml";
+
+  // Fall back to the hint provided (e.g. upstream Content-Type)
+  return hint;
+}
+
 function warnStorageOnce(message: string, details?: unknown) {
   if (warnedStorageMessages.has(message)) return;
   warnedStorageMessages.add(message);
@@ -62,10 +123,13 @@ async function readSupabaseStorageCache(cacheKey: string): Promise<{
 
   if (error || !data) return null;
 
-  return {
-    body: Buffer.from(await data.arrayBuffer()),
-    contentType: safeContentType(data.type || "application/octet-stream"),
-  };
+  const body = Buffer.from(await data.arrayBuffer());
+  const contentType = sniffContentTypeFromBytes(
+    body,
+    safeContentType(data.type || null),
+  );
+
+  return { body, contentType };
 }
 
 async function writeSupabaseStorageCache(
