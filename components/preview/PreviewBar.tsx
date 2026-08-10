@@ -1,12 +1,56 @@
 "use client";
 
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 type RefreshState = "idle" | "loading" | "success" | "cooldown" | "error";
 
 export function PreviewBar() {
+  const router = useRouter();
   const [state, setState] = useState<RefreshState>("idle");
   const [cooldownSecs, setCooldownSecs] = useState(0);
+
+  // Global click interceptor: Ensure any internal navigation retains the /prev suffix
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      // Ignore modified clicks (new tab, etc)
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0)
+        return;
+
+      const a = (e.target as Element).closest("a");
+      if (!a) return;
+
+      // Only intercept internal links
+      if (a.origin !== window.location.origin) return;
+
+      const href = a.getAttribute("href");
+      if (!href || href.startsWith("#")) return;
+
+      const url = new URL(a.href);
+      let pathname = url.pathname;
+
+      // Ignore static assets, APIs, etc.
+      if (pathname.match(/^\/(api|_next|favicon\.ico|.*\.[a-z0-9]+$)/i)) return;
+
+      // If it doesn't already end with /prev, we append it
+      if (!pathname.endsWith("/prev")) {
+        e.preventDefault();
+        e.stopPropagation();
+
+        pathname = pathname.replace(/\/+$/, "");
+        if (pathname === "") pathname = "/";
+
+        const newPathname = pathname === "/" ? "/prev" : `${pathname}/prev`;
+        const newUrl = `${newPathname}${url.search}${url.hash}`;
+
+        router.push(newUrl);
+      }
+    };
+
+    // Capture phase intercepts before Next.js Link
+    document.addEventListener("click", handleClick, true);
+    return () => document.removeEventListener("click", handleClick, true);
+  }, [router]);
 
   async function handleRefresh() {
     if (state === "loading") return;
