@@ -28,7 +28,7 @@ function groupByCategory(docs: DocMeta[]): GroupedDocs {
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
-import { getCanonicalClientPath } from "@/lib/cms-route";
+import { getCanonicalClientPath } from "@/lib/cms-canonical";
 
 interface DocsSidebarProps {
   docs: DocMeta[];

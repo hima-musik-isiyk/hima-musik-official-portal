@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-import { getCanonicalClientPath } from "@/lib/cms-route";
+import { getCanonicalClientPath } from "@/lib/cms-canonical";
 
 /**
  * Full-screen navigation loading overlay.

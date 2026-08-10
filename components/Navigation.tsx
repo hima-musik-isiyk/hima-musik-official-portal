@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { getCanonicalClientPath } from "@/lib/cms-route";
+import { getCanonicalClientPath } from "@/lib/cms-canonical";
 import { FEATURES } from "@/lib/feature-flags";
 import { getCmsGsapEasing, gsap } from "@/lib/gsap";
 import {

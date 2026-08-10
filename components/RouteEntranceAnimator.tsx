@@ -3,7 +3,7 @@
 import { usePathname } from "next/navigation";
 import React, { useRef } from "react";
 
-import { getCanonicalClientPath } from "@/lib/cms-route";
+import { getCanonicalClientPath } from "@/lib/cms-canonical";
 import { getCmsGsapEasing, gsap } from "@/lib/gsap";
 import useIsomorphicLayoutEffect from "@/lib/useIsomorphicLayoutEffect";
 import {

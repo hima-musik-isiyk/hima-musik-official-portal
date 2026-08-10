@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useEffect, useRef, useState } from "react";
 
-import { getCanonicalClientPath } from "@/lib/cms-route";
+import { getCanonicalClientPath } from "@/lib/cms-canonical";
 import {
   fetchDivisionsOnce,
   readCachedDivisions,

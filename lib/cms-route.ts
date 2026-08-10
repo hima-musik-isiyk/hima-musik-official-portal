@@ -4,16 +4,7 @@ import { connection } from "next/server";
 export const CMS_PATHNAME_HEADER = "x-pathname";
 export const CMS_PREVIEW_HEADER = "x-preview-mode";
 
-/** Strip preview suffix (/prev) from client pathname if present. */
-export function getCanonicalClientPath(
-  pathname: string | null | undefined,
-): string {
-  if (!pathname) return "/";
-  if (pathname.endsWith("/prev")) {
-    return pathname.slice(0, -5) || "/";
-  }
-  return pathname;
-}
+export { getCanonicalClientPath } from "./cms-canonical";
 
 /** Returns true when the request URL ends with /prev (preview mode). */
 export async function getIsPreviewMode(): Promise<boolean> {
