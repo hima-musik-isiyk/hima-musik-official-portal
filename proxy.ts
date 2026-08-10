@@ -74,7 +74,15 @@ export async function proxy(request: NextRequest) {
   }
 
   const requestHeaders = new Headers(request.headers);
-  requestHeaders.set(CMS_PATHNAME_HEADER, pathname);
+
+  // Preview mode: strip trailing /prev suffix so the CMS resolves the real path,
+  // but set a header so server components can render the PreviewBar.
+  const isPreview = pathname.endsWith("/prev");
+  const canonicalPath = isPreview
+    ? pathname.slice(0, -"/prev".length) || "/"
+    : pathname;
+  requestHeaders.set(CMS_PATHNAME_HEADER, canonicalPath);
+  if (isPreview) requestHeaders.set("x-preview-mode", "1");
 
   return NextResponse.next({
     request: { headers: requestHeaders },
