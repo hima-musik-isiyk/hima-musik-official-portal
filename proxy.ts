@@ -84,6 +84,12 @@ export async function proxy(request: NextRequest) {
   requestHeaders.set(CMS_PATHNAME_HEADER, canonicalPath);
   if (isPreview) requestHeaders.set("x-preview-mode", "1");
 
+  if (isPreview) {
+    return NextResponse.rewrite(new URL(canonicalPath, request.url), {
+      request: { headers: requestHeaders },
+    });
+  }
+
   return NextResponse.next({
     request: { headers: requestHeaders },
   });
