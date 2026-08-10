@@ -318,33 +318,6 @@ export default function KKMGrid({
           groups.map((group) => <KKMCard key={group.slug} group={group} />)
         )}
       </div>
-
-      {/* About KKM (from AD/ART) */}
-      <div
-        data-animate="up"
-        className="mx-auto mb-12 max-w-3xl border border-white/5 p-6 md:mb-14 md:p-8"
-      >
-        <div className="mb-6 flex items-center gap-4">
-          <span className="bg-gold-500/40 block h-px w-6" aria-hidden="true" />
-          <h2 className="font-serif text-2xl text-white">Tentang KKM</h2>
-        </div>
-        <div className="space-y-4 text-sm leading-relaxed text-stone-400">
-          <p>
-            Berdasarkan{" "}
-            <span className="text-gold-400 font-medium">
-              AD/ART BAB IX Pasal 26
-            </span>
-            , Kelompok Kegiatan Mahasiswa (KKM) adalah organisasi di bawah
-            naungan HMJ Musik FSP ISI-YK yang menjunjung kegiatan kokurikuler.
-          </p>
-          <p>
-            Setiap KKM memiliki kepengurusan sendiri dan berpartisipasi dalam
-            Musyawarah Mahasiswa (MUSMA) sebagai perwakilan struktural. KKM
-            menjadi wadah bagi mahasiswa untuk mengembangkan minat spesifik di
-            bidang musik, jurnalistik, dan kesenian.
-          </p>
-        </div>
-      </div>
     </div>
   );
 }

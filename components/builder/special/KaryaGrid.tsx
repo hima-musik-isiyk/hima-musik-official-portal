@@ -330,21 +330,29 @@ export const KaryaGrid: React.FC<KaryaGridProps> = ({
               <div className="flex flex-1 flex-col p-6">
                 {/* Top Header Row */}
                 <div className="mb-4 flex items-center justify-between">
-                  <span
-                    className={`border px-2.5 py-1 text-[9px] font-semibold tracking-[0.15em] uppercase ${
-                      entry.platform === "Spotify"
-                        ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-400"
-                        : entry.platform === "YouTube"
-                          ? "border-red-500/20 bg-red-500/5 text-red-400"
-                          : entry.platform === "SoundCloud"
-                            ? "border-orange-500/20 bg-orange-500/5 text-orange-400"
-                            : entry.platform === "Apple Music"
-                              ? "border-pink-500/20 bg-pink-500/5 text-pink-400"
-                              : "border-gold-500/20 text-gold-400 bg-gold-500/5"
-                    }`}
-                  >
-                    {entry.platform}
-                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(entry.platforms && entry.platforms.length > 0
+                      ? entry.platforms
+                      : [entry.platform]
+                    ).map((plat) => (
+                      <span
+                        key={plat}
+                        className={`border px-2.5 py-1 text-[9px] font-semibold tracking-[0.15em] uppercase ${
+                          plat === "Spotify"
+                            ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-400"
+                            : plat === "YouTube"
+                              ? "border-red-500/20 bg-red-500/5 text-red-400"
+                              : plat === "SoundCloud"
+                                ? "border-orange-500/20 bg-orange-500/5 text-orange-400"
+                                : plat === "Apple Music"
+                                  ? "border-pink-500/20 bg-pink-500/5 text-pink-400"
+                                  : "border-gold-500/20 text-gold-400 bg-gold-500/5"
+                        }`}
+                      >
+                        {plat}
+                      </span>
+                    ))}
+                  </div>
 
                   <a
                     href={entry.embedLink}
@@ -378,10 +386,8 @@ export const KaryaGrid: React.FC<KaryaGridProps> = ({
                   ))}
                 </div>
 
-                {/* Date & Control Footer */}
-                <div className="mt-4 flex items-center justify-between text-[10px] font-medium text-neutral-600">
-                  <span>{entry.submissionDate}</span>
-
+                {/* Control Footer (Date explicitly hidden per design request) */}
+                <div className="mt-4 flex min-h-[20px] items-center justify-end text-[10px] font-medium text-neutral-600">
                   {playingId === entry.id && (
                     <button
                       onClick={() => setPlayingId(null)}
