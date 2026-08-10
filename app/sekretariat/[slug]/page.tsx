@@ -2,8 +2,6 @@ import { notFound } from "next/navigation";
 import React from "react";
 
 import { PageBuilder } from "@/components/builder/PageBuilder";
-import { PreviewBar } from "@/components/preview/PreviewBar";
-import { getIsPreviewMode } from "@/lib/cms-route";
 import { fetchDocBySlug } from "@/lib/notion";
 
 interface DocRouteProps {
@@ -11,7 +9,7 @@ interface DocRouteProps {
 }
 
 export default async function DocRoutePage({ params }: DocRouteProps) {
-  const [{ slug }, isPreview] = await Promise.all([params, getIsPreviewMode()]);
+  const { slug } = await params;
   const result = await fetchDocBySlug(slug);
 
   if (!result) return notFound();
@@ -25,7 +23,6 @@ export default async function DocRoutePage({ params }: DocRouteProps) {
           "Doc Page": { doc: result.meta, blocks: result.blocks },
         }}
       />
-      {isPreview && <PreviewBar />}
     </>
   );
 }

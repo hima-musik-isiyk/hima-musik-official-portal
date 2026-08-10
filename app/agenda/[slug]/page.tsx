@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import React from "react";
 
 import { PageBuilder } from "@/components/builder/PageBuilder";
-import { PreviewBar } from "@/components/preview/PreviewBar";
 import { getIsPreviewMode } from "@/lib/cms-route";
 import { fetchEventBySlug, fetchKKMGroups } from "@/lib/notion";
 
@@ -43,7 +42,6 @@ export default async function EventDetailRoute({
           },
         }}
       />
-      {isPreview && <PreviewBar />}
     </>
   );
 }

@@ -3,8 +3,7 @@ import { redirect } from "next/navigation";
 
 import { PageBuilder } from "@/components/builder/PageBuilder";
 import PageEntranceWrapper from "@/components/builder/PageEntranceWrapper";
-import { PreviewBar } from "@/components/preview/PreviewBar";
-import { getIsPreviewMode, getRequestPathname } from "@/lib/cms-route";
+import { getRequestPathname } from "@/lib/cms-route";
 import {
   fetchFAQCategoriesCached,
   fetchFAQEntries,
@@ -64,10 +63,7 @@ export async function generateMetadata({
 }
 
 export default async function CatchAllPage({ params: _params }: CatchAllProps) {
-  const [path, isPreview] = await Promise.all([
-    getRequestPathname(),
-    getIsPreviewMode(),
-  ]);
+  const path = await getRequestPathname();
 
   // Check feature flags first
   if (path.startsWith("/pendaftaran")) {
@@ -134,7 +130,6 @@ export default async function CatchAllPage({ params: _params }: CatchAllProps) {
           injectedProps={injectedProps}
         />
       </PageEntranceWrapper>
-      {isPreview && <PreviewBar />}
     </>
   );
 }

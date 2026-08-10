@@ -12,7 +12,9 @@ import LegacyHashRedirectWrapper from "../components/LegacyHashRedirectWrapper";
 import LocatorInitializer from "../components/LocatorInitializer";
 import Navigation from "../components/Navigation";
 import NavigationLoader from "../components/NavigationLoader";
+import { PreviewBar } from "../components/preview/PreviewBar";
 import RouteEntranceAnimator from "../components/RouteEntranceAnimator";
+import { getIsPreviewMode } from "../lib/cms-route";
 import {
   fetchContainerCMSCached,
   getNavigationData,
@@ -45,8 +47,10 @@ export default async function RootLayout({ children }: RootLayoutProps) {
   let gsapEasing = "power3.out";
   let entranceAnimate = "true";
   let hiddenFooterPaths: string[] = [];
+  let isPreview = false;
 
   try {
+    isPreview = await getIsPreviewMode();
     const cmsData = await fetchContainerCMSCached();
     if (cmsData?.pages) {
       const navData = getNavigationData(cmsData.pages);
@@ -107,6 +111,7 @@ export default async function RootLayout({ children }: RootLayoutProps) {
         </Suspense>
         <Analytics />
         <SpeedInsights />
+        {isPreview && <PreviewBar />}
       </body>
     </html>
   );

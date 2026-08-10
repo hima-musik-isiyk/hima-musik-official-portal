@@ -2,8 +2,6 @@ import { notFound } from "next/navigation";
 import React from "react";
 
 import { PageBuilder } from "@/components/builder/PageBuilder";
-import { PreviewBar } from "@/components/preview/PreviewBar";
-import { getIsPreviewMode } from "@/lib/cms-route";
 import { fetchKKMEntryBySlug } from "@/lib/notion";
 
 interface KKMDetailProps {
@@ -11,7 +9,7 @@ interface KKMDetailProps {
 }
 
 export default async function KKMDetailPage({ params }: KKMDetailProps) {
-  const [{ slug }, isPreview] = await Promise.all([params, getIsPreviewMode()]);
+  const { slug } = await params;
   const result = await fetchKKMEntryBySlug(slug);
 
   if (!result) return notFound();
@@ -33,7 +31,6 @@ export default async function KKMDetailPage({ params }: KKMDetailProps) {
           },
         }}
       />
-      {isPreview && <PreviewBar />}
     </>
   );
 }
