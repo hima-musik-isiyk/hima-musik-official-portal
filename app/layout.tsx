@@ -40,6 +40,12 @@ type RootLayoutProps = {
   children: React.ReactNode;
 };
 
+async function PreviewBarWrapper() {
+  const isPreview = await getIsPreviewMode();
+  if (!isPreview) return null;
+  return <PreviewBar />;
+}
+
 export default async function RootLayout({ children }: RootLayoutProps) {
   let navItems: NavItemDto[] | undefined = undefined;
   let mobileNavItems: NavItemDto[] | undefined = undefined;
@@ -47,10 +53,8 @@ export default async function RootLayout({ children }: RootLayoutProps) {
   let gsapEasing = "power3.out";
   let entranceAnimate = "true";
   let hiddenFooterPaths: string[] = [];
-  let isPreview = false;
 
   try {
-    isPreview = await getIsPreviewMode();
     const cmsData = await fetchContainerCMSCached();
     if (cmsData?.pages) {
       const navData = getNavigationData(cmsData.pages);
@@ -111,7 +115,9 @@ export default async function RootLayout({ children }: RootLayoutProps) {
         </Suspense>
         <Analytics />
         <SpeedInsights />
-        {isPreview && <PreviewBar />}
+        <Suspense fallback={null}>
+          <PreviewBarWrapper />
+        </Suspense>
       </body>
     </html>
   );

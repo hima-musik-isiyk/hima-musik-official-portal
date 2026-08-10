@@ -8,29 +8,37 @@ export { getCanonicalClientPath } from "./cms-canonical";
 
 /** Returns true when the request URL ends with /prev (preview mode). */
 export async function getIsPreviewMode(): Promise<boolean> {
-  await connection();
-  const headerStore = await headers();
-  return headerStore.get(CMS_PREVIEW_HEADER) === "1";
+  try {
+    await connection();
+    const headerStore = await headers();
+    return headerStore.get(CMS_PREVIEW_HEADER) === "1";
+  } catch {
+    return false;
+  }
 }
 
 /** Current request pathname from proxy (no hardcoded route slugs). */
 export async function getRequestPathname(): Promise<string> {
-  await connection();
-  const headerStore = await headers();
-  const fromProxy = headerStore.get(CMS_PATHNAME_HEADER);
-  if (fromProxy) {
-    const trimmed = fromProxy.trim();
-    return trimmed || "/";
-  }
-
-  const nextUrl = headerStore.get("x-url") ?? headerStore.get("next-url");
-  if (nextUrl) {
-    try {
-      const pathname = new URL(nextUrl, "http://localhost").pathname;
-      return pathname || "/";
-    } catch {
-      // ignore malformed header
+  try {
+    await connection();
+    const headerStore = await headers();
+    const fromProxy = headerStore.get(CMS_PATHNAME_HEADER);
+    if (fromProxy) {
+      const trimmed = fromProxy.trim();
+      return trimmed || "/";
     }
+
+    const nextUrl = headerStore.get("x-url") ?? headerStore.get("next-url");
+    if (nextUrl) {
+      try {
+        const pathname = new URL(nextUrl, "http://localhost").pathname;
+        return pathname || "/";
+      } catch {
+        // ignore malformed header
+      }
+    }
+  } catch {
+    // Return root fallback on prerender
   }
 
   return "/";
