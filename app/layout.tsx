@@ -19,6 +19,7 @@ import {
   fetchContainerCMSCached,
   getNavigationData,
   NavItemDto,
+  normalizeCmsSlug,
 } from "../lib/notion-builder";
 
 const fraunces = Fraunces({
@@ -64,10 +65,8 @@ export default async function RootLayout({ children }: RootLayoutProps) {
 
       hiddenFooterPaths = cmsData.pages
         .filter((p) => p.showFooter === false)
-        .map((p) => {
-          const s = p.slug?.trim() || "";
-          return s.startsWith("/") ? s : `/${s}`;
-        });
+        .map((p) => normalizeCmsSlug(p.slug || ""))
+        .filter((s) => s.length > 0);
     }
     gsapEasing = cmsData?.variables?.GSAP_EASING?.trim() || gsapEasing;
     const cmsEntrance =
@@ -78,6 +77,14 @@ export default async function RootLayout({ children }: RootLayoutProps) {
   } catch (error) {
     console.error("Failed to load navigation from Notion CMS:", error);
   }
+
+  const pendaftaranPage =
+    navItems?.find(
+      (item) =>
+        item.href === "/pendaftaran" ||
+        item.label.toLowerCase() === "pendaftaran",
+    ) || highlightItem?.href === "/pendaftaran";
+  const allowPendaftaran = Boolean(pendaftaranPage);
 
   return (
     <html
@@ -111,7 +118,10 @@ export default async function RootLayout({ children }: RootLayoutProps) {
           </Suspense>
         </main>
         <Suspense>
-          <Footer hiddenFooterPaths={hiddenFooterPaths} />
+          <Footer
+            hiddenFooterPaths={hiddenFooterPaths}
+            allowPendaftaran={allowPendaftaran}
+          />
         </Suspense>
         <Analytics />
         <SpeedInsights />

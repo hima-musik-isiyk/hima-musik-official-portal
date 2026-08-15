@@ -89,8 +89,14 @@ const LEGAL_LINKS = [
   { name: "Terms", href: "/terms-of-service" },
 ];
 
-const Footer: React.FC<{ hiddenFooterPaths?: string[] }> = ({
+interface FooterProps {
+  hiddenFooterPaths?: string[];
+  allowPendaftaran?: boolean;
+}
+
+const Footer: React.FC<FooterProps> = ({
   hiddenFooterPaths = [],
+  allowPendaftaran = false,
 }) => {
   const [currentYear, setCurrentYear] = useState(2026);
   const rawPathname = usePathname();
@@ -113,12 +119,14 @@ const Footer: React.FC<{ hiddenFooterPaths?: string[] }> = ({
       );
   }, []);
 
+  const isPendaftaranActive = FEATURES.ALLOW_PENDAFTARAN && allowPendaftaran;
+
   const footerLinks = React.useMemo(() => {
-    if (FEATURES.ALLOW_PENDAFTARAN) {
+    if (isPendaftaranActive) {
       return [...NAV_LINKS, { name: "Open Recruitment", href: "/pendaftaran" }];
     }
     return NAV_LINKS;
-  }, []);
+  }, [isPendaftaranActive]);
 
   const kontakRingRef = useRef<HTMLDivElement>(null);
 
@@ -138,9 +146,15 @@ const Footer: React.FC<{ hiddenFooterPaths?: string[] }> = ({
     return () => window.removeEventListener("hima:highlight-kontak", handler);
   }, []);
 
-  // Don't render footer on sekretariat pages or hidden pages
-  if (pathname?.startsWith("/sekretariat")) return null;
-  if (hiddenFooterPaths.includes(pathname || "")) return null;
+  // Don't render footer on pages where Show Footer is unchecked in Notion CMS
+  const normalizedCurrentPath = pathname?.trim() || "";
+  const isFooterHidden = hiddenFooterPaths.some((p) => {
+    const norm = p.trim();
+    if (!norm) return false;
+    return normalizedCurrentPath === norm;
+  });
+
+  if (isFooterHidden) return null;
 
   // Helper to return animation attributes
   const animAttrs = (variant: string, delay = 0, scroll = true) => {
@@ -368,7 +382,7 @@ const Footer: React.FC<{ hiddenFooterPaths?: string[] }> = ({
           </div>
 
           {/* Col 3 — Identitas / Quick CTA */}
-          {FEATURES.ALLOW_PENDAFTARAN ? (
+          {isPendaftaranActive ? (
             <div {...animAttrs("up", 0, false)} className="md:col-span-4">
               <h4 className="mb-5 flex items-center gap-3 text-[0.65rem] font-bold tracking-[0.4em] text-stone-600 uppercase">
                 <span className="bg-gold-500/40 inline-block h-px w-6" />
