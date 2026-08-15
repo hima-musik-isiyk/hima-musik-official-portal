@@ -469,7 +469,7 @@ async function crawlDatabase(
       schema.dataSourceId = db.data_sources[0].id;
     }
 
-    // 2. Extract property schemas (Support Notion API 2025-09-03 where properties are in data_sources)
+    // 2. Extract property schemas (Support Notion API 2026-03-11 where properties are in data_sources)
     let rawProperties = db.properties;
     if (!rawProperties && schema.dataSourceId) {
       try {
