@@ -469,9 +469,21 @@ async function crawlDatabase(
       schema.dataSourceId = db.data_sources[0].id;
     }
 
-    // 2. Extract property schemas
-    if (db.properties) {
-      for (const [propName, propValue] of Object.entries(db.properties)) {
+    // 2. Extract property schemas (Support Notion API 2025-09-03 where properties are in data_sources)
+    let rawProperties = db.properties;
+    if (!rawProperties && schema.dataSourceId) {
+      try {
+        const ds = await notionFetch<any>(
+          `/data_sources/${schema.dataSourceId}`,
+        );
+        rawProperties = ds.properties;
+      } catch {
+        // fallback
+      }
+    }
+
+    if (rawProperties) {
+      for (const [propName, propValue] of Object.entries(rawProperties)) {
         const propSchema = extractPropertySchema(propName, propValue);
         schema.properties.push(propSchema);
 
