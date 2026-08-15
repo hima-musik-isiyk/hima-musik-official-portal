@@ -42,7 +42,7 @@ To prevent the application from breaking when Notion schemas drift, column names
 ┌────────────────────────────────────────────────────────┐
 │ Layer C: The Builder (lib/notion-builder.ts & UI)      │
 │ Dynamic PageBuilder & components consume Layer B       │
-└──────────────────────────┘
+└────────────────────────────────────────────────────────┘
 ```
 
 ### 1. Layer A: The Scanner (`scripts/notion-roaming-fetcher.ts`)
