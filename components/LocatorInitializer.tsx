@@ -2,47 +2,28 @@
 
 import { useEffect } from "react";
 
-const locatorTarget =
-  "antigravity-ide://open?file=${projectPath}${filePath}&line=${line}&column=${column}";
-
-function setDefaultLocatorTarget() {
-  document.documentElement.dataset.locatorTarget = locatorTarget;
-
-  try {
-    const storedOptions = window.localStorage.getItem("LOCATOR_OPTIONS");
-    const options = storedOptions ? JSON.parse(storedOptions) : {};
-
-    if (!options.templateOrTemplateId) {
-      window.localStorage.setItem(
-        "LOCATOR_OPTIONS",
-        JSON.stringify({ ...options, templateOrTemplateId: locatorTarget }),
-      );
-    }
-  } catch {
-    return;
-  }
+interface LocatorInitializerProps {
+  projectPath?: string;
 }
 
-export default function LocatorInitializer() {
+export default function LocatorInitializer({
+  projectPath,
+}: LocatorInitializerProps) {
+  const resolvedPath = projectPath || process.env.NEXT_PUBLIC_PROJECT_PATH;
+  const locatorOverride =
+    process.env.ENABLE_LOCATOR ?? process.env.NEXT_PUBLIC_ENABLE_LOCATOR;
+  const locatorEnabled =
+    process.env.NODE_ENV === "development" && locatorOverride !== "false";
+
   useEffect(() => {
-    const projectPath = process.env.NEXT_PUBLIC_PROJECT_PATH;
-
-    if (
-      process.env.NODE_ENV !== "development" ||
-      process.env.NEXT_PUBLIC_ENABLE_LOCATOR === "false" ||
-      !projectPath
-    ) {
-      return;
+    if (locatorEnabled && resolvedPath) {
+      import("@locator/runtime")
+        .then(({ default: setupLocatorUI }) => {
+          setupLocatorUI({ projectPath: resolvedPath });
+        })
+        .catch(() => undefined);
     }
-
-    setDefaultLocatorTarget();
-
-    import("@locator/runtime")
-      .then(({ default: setupLocatorUI }) => {
-        setupLocatorUI({ projectPath });
-      })
-      .catch(() => undefined);
-  }, []);
+  }, [locatorEnabled, resolvedPath]);
 
   return null;
 }
