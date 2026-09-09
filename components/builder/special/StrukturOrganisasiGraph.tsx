@@ -341,10 +341,6 @@ const OrgChart = ({
           </div>
         </div>
       </div>
-
-      <div className="flex flex-col items-center">
-        <div className="h-8 w-px bg-white/15" />
-      </div>
     </div>
   );
 };

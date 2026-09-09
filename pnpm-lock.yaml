@@ -80,6 +80,9 @@ importers:
         specifier: ^5.0.13
         version: 5.0.13(@types/react@18.3.29)(react@18.3.1)
     devDependencies:
+      '@babel/preset-typescript':
+        specifier: ^7.29.7
+        version: 7.29.7(@babel/core@7.29.7)
       '@locator/runtime':
         specifier: ^0.5.1
         version: 0.5.1(tsx@4.22.4)(yaml@2.9.0)

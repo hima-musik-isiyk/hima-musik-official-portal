@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "scripts": {
     "predev": "lsof -t -i:3000 -i:3001 | xargs kill -9 2>/dev/null || true",
-    "dev": "next dev",
+    "dev": "LOCATOR_ENABLED=${LOCATOR_ENABLED:-true} next dev",
     "build": "next build",
     "start": "next start",
     "fetch-notion": "tsx scripts/notion-roaming-fetcher.ts",
@@ -45,6 +45,7 @@
     "zustand": "^5.0.13"
   },
   "devDependencies": {
+    "@babel/preset-typescript": "^7.29.7",
     "@locator/runtime": "^0.5.1",
     "@locator/webpack-loader": "^0.5.1",
     "@tailwindcss/postcss": "^4.2.0",
