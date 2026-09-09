@@ -703,10 +703,10 @@ export async function resolveProfilSdmDatabaseIdFromCms(): Promise<
   string | null
 > {
   const cms = await fetchContainerCMSCached();
-  return resolveCmsComponentDatabaseId(
-    cms,
-    "Struktur Organisasi Graph",
-    "value2",
+  return (
+    resolveCmsComponentDatabaseId(cms, "Struktur Organisasi Graph", "value2") ??
+    resolveCmsComponentDatabaseId(cms, "Struktur Kabinet", "value2") ??
+    resolveCmsComponentDatabaseId(cms, "Struktur Organisasi", "value2")
   );
 }
 
@@ -722,7 +722,19 @@ export function resolveProfilMaxBatchFromCms(cms: ContainerCMSData): number {
       "Struktur Organisasi Graph",
       "Tampilkan Batch dari 1 Sampai",
     ) ??
+    resolveCmsComponentFieldValue(
+      cms,
+      "Struktur Kabinet",
+      "Tampilkan Batch dari 1 Sampai",
+    ) ??
+    resolveCmsComponentFieldValue(
+      cms,
+      "Struktur Organisasi",
+      "Tampilkan Batch dari 1 Sampai",
+    ) ??
     findCmsComponentInstances(cms, "Struktur Organisasi Graph")[0]?.value ??
+    findCmsComponentInstances(cms, "Struktur Kabinet")[0]?.value ??
+    findCmsComponentInstances(cms, "Struktur Organisasi")[0]?.value ??
     "";
 
   const cleaned = cleanCmsValue(batchRaw, ["Tampilkan Batch dari 1 Sampai"]);

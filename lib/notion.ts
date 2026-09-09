@@ -2015,9 +2015,15 @@ export interface ProfilModularExecutive {
   name: string;
 }
 
+export interface ProfilModularMember {
+  name: string;
+  isKepala?: boolean;
+  role?: string;
+}
+
 export interface ProfilModularDivision {
   name: string;
-  members: Array<string | { name: string; isKepala?: boolean }>;
+  members: Array<string | ProfilModularMember>;
   slots: number;
   openPositions: string[];
 }
@@ -2150,9 +2156,20 @@ export async function fetchProfilOrgStructure(
       const types = typeRelationIds
         .map((id) => tipeJabatanMap.get(id) || "")
         .filter(Boolean);
-      const isKepala = types.some((t) =>
-        t.toLowerCase().includes("kepala divisi"),
-      );
+
+      const selectRole =
+        getSelect(page, "Jabatan") ||
+        getSelect(page, "Posisi") ||
+        getSelect(page, "Role");
+      const multiSelectRoles = getMultiSelect(page, "Jabatan Kabinet");
+      if (roles.length === 0) {
+        if (selectRole) roles.push(selectRole);
+        if (multiSelectRoles.length > 0) roles.push(...multiSelectRoles);
+      }
+
+      const isKepala =
+        types.some((t) => /kepala/i.test(t)) ||
+        roles.some((r) => /kepala/i.test(r));
 
       const status = getSelect(page, "Status Keaktifan");
 
@@ -2280,7 +2297,7 @@ export async function fetchProfilOrgStructure(
     const divGroups = new Map<
       string,
       {
-        members: Array<{ name: string; isKepala?: boolean }>;
+        members: ProfilModularMember[];
         slots: number;
         openPositions: string[];
       }
@@ -2315,7 +2332,18 @@ export async function fetchProfilOrgStructure(
           group.openPositions.push(cleanRole);
         }
       } else {
-        group.members.push({ name: m.name, isKepala: m.isKepala });
+        const specificRole = m.roles.find(
+          (r) => !/staf penuh|staf muda/i.test(r),
+        );
+        const resolvedRole =
+          specificRole ||
+          m.roles[0] ||
+          (m.isKepala ? "Kepala Divisi" : "Staff");
+        group.members.push({
+          name: m.name,
+          isKepala: m.isKepala,
+          role: resolvedRole,
+        });
       }
     }
 
@@ -2840,7 +2868,10 @@ export async function fetchDivisionsFromNotion(): Promise<{
         focus: summary.split(".")[0] || "",
         tasks: divisionTasks.length > 0 ? divisionTasks : ["Tugas umum divisi"],
         skills,
-        commitment: "Rutin mengikuti rapat dan kegiatan internal",
+        commitment:
+          getRichText(page, "Komitmen") ||
+          getRichText(page, "Commitment") ||
+          "",
         openPositions: Array.from(new Set(openPositions)),
       };
     });

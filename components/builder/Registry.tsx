@@ -39,6 +39,8 @@ export const componentRegistry: Record<string, RegistryComponent> = {
   "Button Span": GenericButtonSpan,
   "Aduan Form": AduanForm,
   "Struktur Organisasi Graph": StrukturOrganisasiGraph,
+  "Struktur Kabinet": StrukturOrganisasiGraph,
+  "Struktur Organisasi": StrukturOrganisasiGraph,
   "Karya Grid": KaryaGrid,
   "Timeline Seleksi": TimelineSeleksi,
   "FAQ List": FAQList,

@@ -27,7 +27,10 @@ export async function GET(request: Request) {
           cms,
           "Struktur Organisasi Graph",
           "value2",
-        ) ?? "";
+        ) ??
+        resolveCmsComponentDatabaseId(cms, "Struktur Kabinet", "value2") ??
+        resolveCmsComponentDatabaseId(cms, "Struktur Organisasi", "value2") ??
+        "";
     }
 
     if (!databaseId) {
