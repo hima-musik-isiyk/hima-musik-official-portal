@@ -157,6 +157,7 @@ interface InstagramProfile {
   username?: string;
   name?: string;
   profile_pic?: string;
+  suspectedUsername?: string; // Username detected from message text, not verified by Graph API
 }
 
 interface DiscordIdentity {
@@ -338,10 +339,19 @@ async function buildMessagingEmbeds(entry: any, context: WebhookContext) {
 
     const senderId = himaSender ? himaId : event.sender?.id || context.senderId;
 
+    // Log sender profile resolution
+    console.warn(
+      `[Webhook] Resolving profile for sender ${senderId} (isHima=${himaSender})`,
+    );
+
     const senderProfile =
       senderId === context.senderId && context.senderProfile
         ? context.senderProfile
-        : await fetchInstagramProfile(senderId);
+        : await fetchInstagramProfile(senderId, event.message?.text);
+
+    console.warn(
+      `[Webhook] Profile resolved for ${senderId}: username=${!!senderProfile?.username} name=${!!senderProfile?.name}`,
+    );
 
     const discordIdentity = getDiscordIdentity({
       profile: senderProfile,
@@ -353,9 +363,29 @@ async function buildMessagingEmbeds(entry: any, context: WebhookContext) {
 
     const attachments = getMessageAttachments(event.message);
     const storyReply = getStoryReply(event.message);
-    const rawImageUrl = storyReply?.url
-      ? storyReply.url
-      : attachments.find(isDiscordImageAttachment)?.url;
+
+    // For regular attachments, only include if they pass the image attachment check
+    const validImageAttachment = attachments.find(isDiscordImageAttachment);
+
+    // Story reply URLs should ALWAYS be attempted (they're always visual content)
+    // We don't gate story replies behind URL pattern checks
+    let rawImageUrl: string | undefined;
+
+    if (storyReply?.url) {
+      rawImageUrl = storyReply.url;
+      console.warn(
+        `[Webhook] STORY_REPLY detected - using story URL: ${storyReply.url.substring(0, 80)}...`,
+      );
+    } else if (validImageAttachment) {
+      rawImageUrl = validImageAttachment.url;
+      console.warn(
+        `[Webhook] IMAGE_ATTACHMENT detected - using attachment URL: ${validImageAttachment.url.substring(0, 80)}...`,
+      );
+    } else {
+      console.warn(
+        `[Webhook] NO_IMAGE_DETECTED - no story reply or valid image attachment found`,
+      );
+    }
 
     const files: Array<{
       buffer: Buffer;
@@ -366,16 +396,29 @@ async function buildMessagingEmbeds(entry: any, context: WebhookContext) {
     let supabaseUrl: string | null = null;
 
     if (rawImageUrl) {
+      console.warn(
+        `[Webhook] Fetching media buffer for URL: ${rawImageUrl.substring(0, 80)}...`,
+      );
       const fetchedMedia = await fetchMediaBuffer(rawImageUrl);
+
       if (fetchedMedia) {
+        console.warn(
+          `[Webhook] Media fetch SUCCESS - filename=${fetchedMedia.filename}, content-type=${fetchedMedia.contentType}`,
+        );
         files.push(fetchedMedia);
         imageEmbedUrl = `attachment://${fetchedMedia.filename}`;
+
         supabaseUrl = await mirrorToSupabase(
           fetchedMedia.buffer,
           fetchedMedia.filename,
           fetchedMedia.contentType,
         );
+
+        console.warn(
+          `[Webhook] Supabase mirror complete: ${supabaseUrl ? "success" : "failed"}`,
+        );
       } else {
+        console.warn(`[Webhook] Media fetch FAILED - falling back to raw URL`);
         imageEmbedUrl = rawImageUrl;
       }
     }
@@ -807,14 +850,48 @@ function formatStoryReply(story: any) {
 
 function isDiscordImageUrl(url: string) {
   if (!url || typeof url !== "string") return false;
+
+  // Check for known Meta/Instagram CDN hosts as image candidates
+  const metaHosts = [
+    "lookaside.fbsbx.com",
+    "scontent*.cdninstagram.com",
+    "*.fbcdn.net",
+  ];
+
+  try {
+    const parsedUrl = new URL(url);
+    const hostname = parsedUrl.hostname.toLowerCase();
+
+    // Match against Meta CDN hosts
+    for (const hostPattern of metaHosts) {
+      if (hostPattern.includes("*")) {
+        const prefix = hostPattern.split("*")[0];
+        const suffix = hostPattern.split("*")[1];
+        if (hostname.startsWith(prefix) && hostname.endsWith(suffix)) {
+          return true;
+        }
+      } else if (hostname === hostPattern) {
+        return true;
+      }
+    }
+  } catch {
+    // URL parsing failed, fall through to extension check
+  }
+
+  // Fallback: check for file extension
   return /\.(?:avif|gif|jpe?g|png|webp)(?:[?#].*)?$/i.test(url);
 }
 
 function isDiscordImageAttachment(attachment: any) {
-  return (
-    Boolean(attachment?.url) &&
-    (attachment.type === "image" || isDiscordImageUrl(attachment.url))
-  );
+  if (!Boolean(attachment?.url)) return false;
+
+  // Primary signal: explicit image type
+  if (attachment.type === "image") return true;
+
+  // Secondary signal: URL pattern match (broadened for Meta CDN URLs)
+  if (isDiscordImageUrl(attachment.url)) return true;
+
+  return false;
 }
 
 function stringifyRawPayload(value: any) {
@@ -881,40 +958,148 @@ function hashString(value: string) {
 
 async function fetchInstagramProfile(
   id: string,
+  messageText?: string,
 ): Promise<InstagramProfile | null> {
-  if (!id || !process.env.INSTAGRAM_ACCESS_TOKEN) return null;
-
-  const token = process.env.INSTAGRAM_ACCESS_TOKEN;
-
-  let profile: InstagramProfile | null = null;
-
-  // 1. Try graph.facebook.com (standard for Instagram Messaging IGSID profile lookup)
-  try {
-    const fbFields = "id,name,profile_pic";
-    const fbRes = await fetch(
-      `https://graph.facebook.com/v25.0/${id}?fields=${fbFields}&access_token=${token}`,
-    );
-    if (fbRes.ok) {
-      const data = await fbRes.json();
-      if (data && (data.username || data.name || data.profile_pic)) {
-        profile = {
-          id: data.id || id,
-          username: data.username,
-          name: data.name,
-          profile_pic: data.profile_pic,
-        };
-      }
-    } else {
-      console.warn(`FB Graph API failed for ${id}:`, await fbRes.text());
-    }
-  } catch (err) {
-    console.warn(`FB Graph API error for ${id}:`, err);
+  if (!id || !process.env.INSTAGRAM_ACCESS_TOKEN) {
+    return null;
   }
 
-  // 2. Fallback to graph.instagram.com if not fetched
+  const token = process.env.INSTAGRAM_ACCESS_TOKEN;
+  let profile: InstagramProfile | null = null;
+
+  console.warn(`[Webhook] Starting profile fetch for ${id}`);
+
+  // Layer 1: Check Supabase cache first
+  if (supabaseAdmin) {
+    try {
+      const cachedResult = await supabaseAdmin
+        .from("instagram_profile_cache")
+        .select("username,name,profile_pic,suspected_username")
+        .eq("igsid", id)
+        .maybeSingle();
+
+      if (cachedResult.data && Object.keys(cachedResult.data).length > 0) {
+        console.warn(
+          `[Webhook] Profile ${id}: CACHE HIT - username=${!!cachedResult.data.username}`,
+        );
+        profile = {
+          id,
+          username: cachedResult.data.username,
+          name: cachedResult.data.name,
+          profile_pic: cachedResult.data.profile_pic,
+          suspectedUsername: cachedResult.data.suspected_username,
+        };
+
+        // Return early if we have a valid username from cache
+        if (profile.username) {
+          return profile;
+        }
+      } else {
+        console.warn(
+          `[Webhook] Profile ${id}: CACHE MISS - will query Graph API`,
+        );
+      }
+    } catch (error) {
+      console.error(`[Webhook] Failed to check cache for ${id}:`, error);
+    }
+  }
+
+  // Layer 2: Try graph.facebook.com (standard for Instagram Messaging IGSID profile lookup)
+  try {
+    const fbFields = "id,username,name,profile_pic";
+
+    // Helper function to fetch with retry-on-429 logic
+    async function fetchWithRetry(url: string, maxRetries = 2): Promise<any> {
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        const res = await fetch(url);
+
+        if (res.status === 429 && attempt < maxRetries - 1) {
+          // Rate limited - wait 500ms and retry once
+          console.warn(
+            `[Webhook] FB Graph API rate limited for ${id}, retrying in 500ms...`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          continue;
+        }
+
+        if (res.ok) {
+          return await res.json();
+        }
+
+        // For other errors, don't retry
+        console.warn(
+          `[Webhook] FB Graph API failed for ${id}:`,
+          await res.text(),
+        );
+        return null;
+      }
+
+      return null;
+    }
+
+    const data = await fetchWithRetry(
+      `https://graph.facebook.com/v25.0/${id}?fields=${fbFields}&access_token=${token}`,
+    );
+
+    if (data && (data.username || data.name || data.profile_pic)) {
+      profile = {
+        id: data.id || id,
+        username: data.username,
+        name: data.name,
+        profile_pic: data.profile_pic,
+      };
+
+      // Debug logging for identity issues
+      console.warn(
+        `[Webhook] Profile ${id}: username=${!!data.username} name=${!!data.name}`,
+      );
+
+      // Cache the result
+      if (supabaseAdmin) {
+        try {
+          await supabaseAdmin
+            .from("instagram_profile_cache")
+            .upsert({
+              igsid: id,
+              username: data.username,
+              name: data.name,
+              profile_pic: data.profile_pic,
+              updated_at: new Date().toISOString(),
+            })
+            .select()
+            .then((res) => {
+              if (res.error) {
+                console.warn(
+                  `[Webhook] Failed to cache profile ${id}:`,
+                  res.error.message,
+                );
+              } else {
+                console.warn(
+                  `[Webhook] Cached profile ${id} to instagram_profile_cache`,
+                );
+              }
+            });
+        } catch (err) {
+          console.warn(`[Webhook] Cache upsert failed for ${id}:`, err);
+        }
+      }
+
+      // Success - return immediately
+      return profile;
+    } else {
+      console.warn(
+        `[Webhook] Profile ${id}: No valid data returned from FB Graph API`,
+      );
+    }
+  } catch (err) {
+    console.error(`[Webhook] FB Graph API error for ${id}:`, err);
+  }
+
+  // Layer 3: Fallback to graph.instagram.com if not fetched yet
   if (!profile) {
     try {
       const igFields = "id,username,name,profile_picture_url";
+      console.warn(`[Webhook] Attempting IG Graph API fallback for ${id}`);
       const igRes = await fetch(
         `https://graph.instagram.com/v25.0/${id}?fields=${igFields}&access_token=${token}`,
       );
@@ -927,21 +1112,60 @@ async function fetchInstagramProfile(
             name: data.name,
             profile_pic: data.profile_picture_url,
           };
+
+          // Debug logging for identity issues
+          console.warn(
+            `[Webhook] Profile ${id} from IG Graph: username=${!!data.username} name=${!!data.name}`,
+          );
+
+          // Cache the result
+          if (supabaseAdmin) {
+            try {
+              await supabaseAdmin
+                .from("instagram_profile_cache")
+                .upsert({
+                  igsid: id,
+                  username: data.username,
+                  name: data.name,
+                  profile_pic: data.profile_picture_url,
+                  updated_at: new Date().toISOString(),
+                })
+                .then((res) => {
+                  if (res.error) {
+                    console.warn(
+                      `[Webhook] Failed to cache profile ${id}:`,
+                      res.error.message,
+                    );
+                  } else {
+                    console.warn(
+                      `[Webhook] Cached profile ${id} from IG Graph API`,
+                    );
+                  }
+                });
+            } catch (err) {
+              console.warn(`[Webhook] Cache upsert failed for ${id}:`, err);
+            }
+          }
+
+          return profile;
         }
       } else {
-        console.warn(`IG Graph API failed for ${id}:`, await igRes.text());
+        console.warn(
+          `[Webhook] IG Graph API failed for ${id}:`,
+          await igRes.text(),
+        );
       }
     } catch (error) {
-      console.error("Failed to fetch Instagram profile fallback:", error);
+      console.error("[Webhook] IG Graph API fallback error:", error);
     }
   }
 
-  // 3. Direct Graph API picture endpoint query if profile_pic missing
-  if (!profile) {
-    profile = { id };
-  }
+  // Layer 4: Direct Graph API picture endpoint query if profile_pic missing
+  if (!profile?.profile_pic) {
+    if (!profile) {
+      profile = { id };
+    }
 
-  if (!profile.profile_pic) {
     try {
       const picRes = await fetch(
         `https://graph.facebook.com/v25.0/${id}/picture?type=large&redirect=0&access_token=${token}`,
@@ -957,7 +1181,23 @@ async function fetchInstagramProfile(
     }
   }
 
-  // 4. Mirror temporary avatar URL to Supabase Storage for permanent caching
+  // Layer 5: Username fallback from message text if still no username found
+  if (messageText && !profile?.username) {
+    console.warn(
+      `[Webhook] Profile ${id}: No username from Graph API, checking message text`,
+    );
+    const usernameMatch = messageText.match(/@([a-zA-Z0-9._]{1,30})\b/gi);
+
+    if (usernameMatch && usernameMatch.length > 0) {
+      const detectedUsername = usernameMatch[0].replace("@", "");
+      console.warn(
+        `[Webhook] Profile ${id}: suspected username from message text = ${detectedUsername}`,
+      );
+      profile!.suspectedUsername = detectedUsername;
+    }
+  }
+
+  // Layer 6: Mirror temporary avatar URL to Supabase Storage for permanent caching
   if (profile?.profile_pic && supabaseAdmin) {
     try {
       const avatarMedia = await fetchMediaBuffer(profile.profile_pic);
@@ -997,7 +1237,10 @@ async function getEntryContext(entry: any): Promise<WebhookContext> {
     ? himaId || primaryEvent?.sender?.id
     : primaryEvent?.sender?.id || entry?.changes?.[0]?.value?.from?.id;
 
-  const senderProfile = await fetchInstagramProfile(senderId);
+  // Extract message text from primary event for username detection
+  const messageText = primaryEvent?.message?.text;
+
+  const senderProfile = await fetchInstagramProfile(senderId, messageText);
   const discordIdentity = getDiscordIdentity({
     profile: senderProfile,
     fallback: himaSender ? "HIMA Musik ISI Yogyakarta" : senderId || identifier,
