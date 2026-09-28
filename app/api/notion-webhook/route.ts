@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { safeEqual } from "@/lib/api-auth";
 import { sendDiscordWebhook } from "@/lib/discord";
+import { NOTION_API_VERSION } from "@/lib/glossarium";
 import { getCalendar } from "@/lib/googleCalendar";
 
 async function resolveDiscordTags(items: any[]): Promise<string[]> {
@@ -21,7 +23,7 @@ async function resolveDiscordTags(items: any[]): Promise<string[]> {
     const res = await fetch(`https://api.notion.com/v1/pages/${targetId}`, {
       headers: {
         Authorization: `Bearer ${process.env.NOTION_INTEGRATION_TOKEN}`,
-        "Notion-Version": "2026-03-11",
+        "Notion-Version": NOTION_API_VERSION,
       },
     });
     const page = await res.json();
@@ -73,7 +75,7 @@ async function resolveAttendeeEmails(items: any[]): Promise<string[]> {
     const res = await fetch(`https://api.notion.com/v1/pages/${targetId}`, {
       headers: {
         Authorization: `Bearer ${process.env.NOTION_INTEGRATION_TOKEN}`,
-        "Notion-Version": "2026-03-11",
+        "Notion-Version": NOTION_API_VERSION,
       },
     });
     const page = await res.json();
@@ -98,7 +100,7 @@ async function updateNotionCalendarId(pageId: string, eventId: string) {
     method: "PATCH",
     headers: {
       Authorization: `Bearer ${process.env.NOTION_INTEGRATION_TOKEN}`,
-      "Notion-Version": "2026-03-11",
+      "Notion-Version": NOTION_API_VERSION,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
@@ -115,14 +117,9 @@ export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("Authorization");
   const xAction = req.headers.get("x-action");
 
-  console.log(`[Notion Calendar Webhook] Triggered. x-action: ${xAction}`);
-  console.log(
-    "[Notion Calendar Webhook] Headers (Before Auth):",
-    JSON.stringify(Object.fromEntries(req.headers.entries())),
-  );
-
-  // Step 1: Auth validation
-  if (authHeader !== process.env.NOTION_WEBHOOK_VERIFICATION_TOKEN) {
+  // Step 1: Auth validation (constant-time compare to avoid leaking tokens)
+  const expectedToken = process.env.NOTION_WEBHOOK_VERIFICATION_TOKEN;
+  if (!authHeader || !expectedToken || !safeEqual(authHeader, expectedToken)) {
     console.error(
       "[Notion Calendar Webhook] Unauthorized! Missing/invalid token",
     );
@@ -133,15 +130,6 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-
-    console.log(
-      "[Notion Calendar Webhook] Headers:",
-      JSON.stringify(Object.fromEntries(req.headers.entries())),
-    );
-    console.log(
-      "[Notion Calendar Webhook] Body:",
-      JSON.stringify(body, null, 2),
-    );
 
     // Step 3: Parse Notion payload
     const props = body.data?.properties || {};
@@ -240,14 +228,7 @@ export async function POST(req: NextRequest) {
     const endDateTime = jadwal?.end ?? jadwal?.start;
 
     // Step 4 & 5: Build event payload
-    console.log(
-      `[Notion Calendar Webhook] Resolving attendees for ${undangan.length} relation items...`,
-    );
     const attendeeEmails = await resolveAttendeeEmails(undangan);
-    console.log(
-      `[Notion Calendar Webhook] Resolved attendee emails:`,
-      attendeeEmails,
-    );
     const attendees = attendeeEmails.map((email) => ({ email }));
 
     const eventBody = {
@@ -267,48 +248,26 @@ export async function POST(req: NextRequest) {
       throw new Error("GOOGLE_CALENDAR_ID environment variable not set");
     }
 
-    console.log(
-      `[Notion Calendar Webhook] Routing x-action: ${xAction}, calId: ${calId}`,
-    );
-
     // Step 6: Route by x-action
     if (xAction === "update") {
       if (!calId) {
         // CREATE
-        console.log(
-          `[Notion Calendar Webhook] Inserting new event into calendar...`,
-          JSON.stringify(eventBody),
-        );
         const calendar = getCalendar();
         const res = await calendar.events.insert({
           calendarId,
           requestBody: eventBody,
         });
-        console.log(
-          `[Notion Calendar Webhook] Insert success. Returned Event ID: ${res.data.id}`,
-        );
         if (res.data.id) {
-          console.log(
-            `[Notion Calendar Webhook] Updating Notion page ${pageId} with Calendar Event ID...`,
-          );
           await updateNotionCalendarId(pageId, res.data.id);
-          console.log(`[Notion Calendar Webhook] Notion page updated.`);
         }
       } else {
         // UPDATE
-        console.log(
-          `[Notion Calendar Webhook] Patching existing event ${calId}...`,
-          JSON.stringify(eventBody),
-        );
         const calendar = getCalendar();
-        const res = await calendar.events.patch({
+        await calendar.events.patch({
           calendarId,
           eventId: calId,
           requestBody: eventBody,
         });
-        console.log(
-          `[Notion Calendar Webhook] Patch success. Returned Event ID: ${res.data.id}`,
-        );
       }
     } else if (xAction === "delete") {
       if (!calId) {
@@ -334,7 +293,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log(`[Notion Calendar Webhook] Operation completed successfully.`);
     return NextResponse.json({ success: true });
   } catch (err: any) {
     // Step 8: Error handling

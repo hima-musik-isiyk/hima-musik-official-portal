@@ -67,7 +67,9 @@ if (!REGISTRY_ID) {
 }
 
 const NOTION_API = "https://api.notion.com/v1";
-const NOTION_VERSION = "2026-03-11";
+import { NOTION_API_VERSION } from "../lib/glossarium";
+
+const NOTION_VERSION = NOTION_API_VERSION;
 const CONCURRENCY = 3; // parallel requests to avoid rate limits
 const SAMPLE_ROWS = 2; // number of rows to sample per database
 

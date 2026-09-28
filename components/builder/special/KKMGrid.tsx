@@ -1,11 +1,12 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import React, { useEffect, useState } from "react";
+import React from "react";
 
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 import type { KKMGroup } from "@/lib/kkm-data";
 import { toCachedImageUrl } from "@/lib/notion-image";
+import { useCachedFetch } from "@/lib/useCachedFetch";
 
 const ACTION_RADIUS = { borderRadius: "var(--radius-action)" } as const;
 const passthroughLoader = ({ src }: { src: string }) => src;
@@ -265,55 +266,16 @@ export default function KKMGrid({
   value2?: string;
   value3?: string;
 }) {
-  const [data, setData] = useState({
-    hero: hero || { title: "", description: "" },
-    groups: initialGroups || [],
-  });
   const hasInitialData = hero !== undefined || initialGroups !== undefined;
-  const [isLoading, setIsLoading] = useState(!hasInitialData);
-
-  useEffect(() => {
-    if (hasInitialData) return;
-
-    // Try to load from localStorage cache first to bootstrap client-side SWR
-    try {
-      const cached = window.localStorage.getItem("hima_kkm_cache");
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        setData((prev) => ({
-          hero: prev.hero.title ? prev.hero : parsed.hero || prev.hero,
-          groups:
-            prev.groups && prev.groups.length > 0
-              ? prev.groups
-              : parsed.groups || [],
-        }));
-      }
-    } catch {}
-
-    const fetchKKMData = async () => {
-      try {
-        const res = await fetch("/api/kkm");
-        if (res.ok) {
-          const result = await res.json();
-          if (result.success && result.data) {
-            setData(result.data);
-            if (typeof window !== "undefined") {
-              window.localStorage.setItem(
-                "hima_kkm_cache",
-                JSON.stringify(result.data),
-              );
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch fresh kkm data:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchKKMData();
-  }, [hasInitialData]);
+  const { data, isLoading } = useCachedFetch({
+    url: "/api/kkm",
+    cacheKey: "hima_kkm_cache",
+    hasInitialData,
+    initialData: {
+      hero: hero || { title: "", description: "" },
+      groups: initialGroups || [],
+    },
+  });
 
   const groups = data.groups;
 

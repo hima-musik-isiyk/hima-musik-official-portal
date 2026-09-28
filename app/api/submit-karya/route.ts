@@ -2,15 +2,14 @@ import { NextResponse } from "next/server";
 
 import { generateKaryaEmailTemplate, sendBrevoEmail } from "@/lib/brevo";
 import { sendDiscordWebhook } from "@/lib/discord";
+import { DB_KARYA_FORM_STORAGE, PROP_KARYA } from "@/lib/glossarium";
 import { getNotionClient, resolveDatabaseId } from "@/lib/notion";
 
 export async function POST(request: Request) {
-  const DISCORD_WEBHOOK_URL =
-    process.env.DISCORD_KARYA_WEBHOOK_URL ||
-    "https://discord.com/api/webhooks/1509621771136012391/HubUQorPzJOhOnODs6xJQtiei1gpE2e6cEuQzX019NNEfLYpuBDB9Ik98X_ZgPOGqk2H";
+  const DISCORD_WEBHOOK_URL = process.env.DISCORD_KARYA_WEBHOOK_URL;
 
   try {
-    const activeDbId = await resolveDatabaseId("02 Form & Storage: Karya");
+    const activeDbId = await resolveDatabaseId(DB_KARYA_FORM_STORAGE);
     if (!activeDbId) {
       return NextResponse.json(
         { error: "Karya Database ID could not be resolved" },
@@ -40,26 +39,26 @@ export async function POST(request: Request) {
     const response = await notion.pages.create({
       parent: { database_id: activeDbId },
       properties: {
-        "Band/Artist dan Judul Karya / Tayangan": {
+        [PROP_KARYA.JUDUL_KARYA]: {
           title: [{ text: { content: title } }],
         },
-        Status: { status: { name: "Masuk" } },
-        "Pencipta / Penampil": {
+        [PROP_KARYA.STATUS]: { status: { name: "Masuk" } },
+        [PROP_KARYA.PENCIPTA_PENAMPIL]: {
           rich_text: [{ text: { content: creator } }],
         },
-        "NIM Penanggung Jawab": {
+        [PROP_KARYA.NIM_PENANGGUNG_JAWAB]: {
           number: parseInt(nim, 10),
         },
-        Email: {
+        [PROP_KARYA.EMAIL]: {
           email: email || "",
         },
-        "Genre / Jenis Karya": {
+        [PROP_KARYA.GENRE_JENIS_KARYA]: {
           multi_select: (genres || []).map((g: string) => ({ name: g })),
         },
-        "Platform Utama": {
+        [PROP_KARYA.PLATFORM_UTAMA]: {
           multi_select: [{ name: platform }],
         },
-        "Link Embed Utama (Full URL)": {
+        [PROP_KARYA.LINK_EMBED]: {
           url: embedLink,
         },
       } as Parameters<typeof notion.pages.create>[0]["properties"],

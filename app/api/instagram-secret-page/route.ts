@@ -1,4 +1,3 @@
-import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import sharp from "sharp";
 
@@ -9,6 +8,7 @@ import {
   getDesignPages,
   resolveCanvaLink,
 } from "@/lib/canva";
+import { getSupabaseAdminClient } from "@/lib/supabase";
 
 const bucketName =
   process.env.INSTAGRAM_SECRET_PAGE_BUCKET ?? "instagram-secret-page";
@@ -82,23 +82,7 @@ function emptyManifest(): InstagramManifest {
   return { version: 1, updatedAt: new Date().toISOString(), items: [] };
 }
 
-function getSupabaseAdmin() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !key) {
-    throw new Error(
-      "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.",
-    );
-  }
-
-  return createClient(url, key, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
-}
+const getSupabaseAdmin = getSupabaseAdminClient;
 
 async function ensureBucket(supabase: ReturnType<typeof getSupabaseAdmin>) {
   const { data: buckets, error: listError } =
@@ -207,7 +191,6 @@ export async function POST(request: Request) {
     }
 
     const payload = JSON.parse(payloadRaw) as UploadPayload;
-    console.warn("[API] Incoming POST payload:", payload);
     const canvaLink = payload.canvaLink;
     const sourceType: "manual" | "canva" = canvaLink ? "canva" : "manual";
 

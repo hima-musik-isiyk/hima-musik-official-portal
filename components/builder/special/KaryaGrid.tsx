@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import {
   IconChevronDown,
@@ -10,6 +10,7 @@ import {
 } from "@/components/Icons";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 import type { KaryaEntryMeta } from "@/lib/notion";
+import { useCachedFetch } from "@/lib/useCachedFetch";
 
 interface KaryaGridProps {
   entries?: KaryaEntryMeta[];
@@ -48,6 +49,32 @@ function KaryaGridSkeleton() {
   );
 }
 
+function KaryaPlayer({ src }: { src: string }) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    iframe.src = src;
+    return () => {
+      // Cached routes retain their DOM while React disconnects effects.
+      // Unload the embed so hidden players cannot keep producing audio.
+      iframe.src = "about:blank";
+    };
+  }, [src]);
+
+  return (
+    <iframe
+      ref={iframeRef}
+      title="Karya player"
+      className="h-full w-full border-0"
+      allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+      allowFullScreen
+    />
+  );
+}
+
 function KaryaArtwork({
   entry,
   isPlaying,
@@ -60,14 +87,7 @@ function KaryaArtwork({
   );
 
   if (isPlaying) {
-    return (
-      <iframe
-        src={entry.embedUrl}
-        className="h-full w-full border-0"
-        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-        allowFullScreen
-      />
-    );
+    return <KaryaPlayer src={entry.embedUrl} />;
   }
 
   if (!entry.artworkUrl) {
@@ -108,47 +128,12 @@ export const KaryaGrid: React.FC<KaryaGridProps> = ({
   value3: _value3,
 }) => {
   const [playingId, setPlayingId] = useState<string | null>(null);
-  const [entries, setEntries] = useState<KaryaEntryMeta[]>(
-    initialEntries || [],
-  );
-  const hasInitialEntries = initialEntries !== undefined;
-  const [isLoading, setIsLoading] = useState(!hasInitialEntries);
-
-  useEffect(() => {
-    if (hasInitialEntries) return;
-
-    try {
-      const cached = window.localStorage.getItem("hima_karya_cache");
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        setEntries((prev) => (prev && prev.length > 0 ? prev : parsed || []));
-      }
-    } catch {}
-
-    const fetchKaryaData = async () => {
-      try {
-        const res = await fetch("/api/karya");
-        if (res.ok) {
-          const result = await res.json();
-          if (result.success && result.data) {
-            setEntries(result.data);
-            if (typeof window !== "undefined") {
-              window.localStorage.setItem(
-                "hima_karya_cache",
-                JSON.stringify(result.data),
-              );
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch fresh karya data:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchKaryaData();
-  }, [hasInitialEntries]);
+  const { data: entries, isLoading } = useCachedFetch<KaryaEntryMeta[]>({
+    url: "/api/karya",
+    cacheKey: "hima_karya_cache",
+    hasInitialData: initialEntries !== undefined,
+    initialData: initialEntries || [],
+  });
 
   // Filters State
   const [searchQuery, setSearchQuery] = useState("");

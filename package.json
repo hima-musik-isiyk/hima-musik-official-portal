@@ -26,7 +26,6 @@
     "@supabase/supabase-js": "^2.105.4",
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
-    "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "embla-carousel-react": "^8.6.0",
     "fflate": "^0.8.2",
@@ -35,14 +34,12 @@
     "lucide-react": "^0.575.0",
     "motion": "^12.34.3",
     "next": "^16.1.6",
-    "notion-to-md": "^3.1.9",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "sharp": "^0.34.5",
     "tailwind-merge": "^3.5.0",
     "tailwindcss-animate": "^1.0.7",
-    "three": "^0.183.1",
-    "zustand": "^5.0.13"
+    "three": "^0.183.1"
   },
   "devDependencies": {
     "@babel/preset-typescript": "^7.29.7",

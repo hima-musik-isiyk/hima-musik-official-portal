@@ -418,3 +418,40 @@ export const PROP_PENDAFTARAN = {
 } as const;
 
 export type StatusSeleksi = "Masuk" | "Interview" | "Diterima" | "Ditolak";
+
+// ──────────────────────────────────────────────────────────────
+//  Rapat & Keputusan (meetings)
+//  Keys are matched by suffix at runtime (Notion may prefix them).
+// ──────────────────────────────────────────────────────────────
+
+export const PROP_RAPAT = {
+  JADWAL: "Jadwal",
+  KIND: "Kind",
+  DAFTAR_UNDANGAN: "(AUT) Daftar Undangan",
+  DIVISI_TERLIBAT: "(AUT) Divisi Terlibat",
+} as const;
+
+// ──────────────────────────────────────────────────────────────
+//  03 Rekam Presensi
+// ──────────────────────────────────────────────────────────────
+
+export const PROP_PRESENSI = {
+  ID_PRESENSI: "ID Presensi",
+  RAPAT_TERKAIT: "Rapat Terkait",
+  PESERTA: "Peserta",
+  STATUS_KEHADIRAN: "Status Kehadiran",
+  WAKTU_KEDATANGAN: "Waktu Kedatangan",
+} as const;
+
+export const PRESENSI_DEFAULT_STATUS = "Belum Hadir";
+
+// ──────────────────────────────────────────────────────────────
+//  Divisi (member relation used by presensi expansion)
+// ──────────────────────────────────────────────────────────────
+
+export const PROP_DIVISI_MEMBERS = {
+  ANGGOTA_DIVISI: "Anggota Divisi",
+  SDM: "SDM",
+} as const;
+
+export const SDM_STATUS_AKTIF = "Aktif";

@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef } from "react";
 
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 import { FEATURES } from "@/lib/feature-flags";
 import type { DocMeta, SekretariatCategory } from "@/lib/notion";
+import { useCachedFetch } from "@/lib/useCachedFetch";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
@@ -91,58 +92,21 @@ export default function SekretariatGrid({
   value2: _value2,
   value3: _value3,
 }: DocsPortalViewProps) {
-  const [data, setData] = useState({
-    docs: initialDocs || [],
-    categories: initialCategories || [],
-  });
   const hasInitialData =
     initialDocs !== undefined || initialCategories.length > 0;
-  const [isLoading, setIsLoading] = useState(!hasInitialData);
-
-  useEffect(() => {
-    if (hasInitialData) return;
-
-    // Try to load from localStorage cache first to bootstrap client-side SWR
-    try {
-      const cached = window.localStorage.getItem("hima_sekretariat_cache");
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        setData((prev) => ({
-          docs:
-            prev.docs && prev.docs.length > 0 ? prev.docs : parsed.docs || [],
-          categories:
-            prev.categories && prev.categories.length > 0
-              ? prev.categories
-              : parsed.categories || [],
-        }));
-      }
-    } catch {}
-
-    const fetchSekretariatData = async () => {
-      try {
-        const res = await fetch("/api/sekretariat");
-        if (res.ok) {
-          const result = await res.json();
-          if (result.success && result.data) {
-            const nextCats = result.categories || [];
-            setData({ docs: result.data, categories: nextCats });
-            if (typeof window !== "undefined") {
-              window.localStorage.setItem(
-                "hima_sekretariat_cache",
-                JSON.stringify({ docs: result.data, categories: nextCats }),
-              );
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch fresh sekretariat data:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchSekretariatData();
-  }, [hasInitialData]);
+  const { data, isLoading } = useCachedFetch({
+    url: "/api/sekretariat",
+    cacheKey: "hima_sekretariat_cache",
+    hasInitialData,
+    initialData: {
+      docs: initialDocs || [],
+      categories: initialCategories || [],
+    },
+    select: (result) =>
+      result?.success && result.data
+        ? { docs: result.data, categories: result.categories || [] }
+        : null,
+  });
 
   const docs = data.docs;
   const cardsRef = useRef<HTMLDivElement>(null);

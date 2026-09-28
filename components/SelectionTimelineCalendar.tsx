@@ -1,11 +1,12 @@
 "use client";
 
-import { Calendar, Clock, Info } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { getCmsGsapEasing, gsap } from "@/lib/gsap";
 import type { RecruitmentTimelineData } from "@/lib/notion";
+
+import { IconCalendar, IconClock, IconInfo } from "./Icons";
 
 const DAYS_OF_WEEK = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
@@ -578,7 +579,7 @@ const SelectionTimelineCalendar: React.FC<SelectionTimelineCalendarProps> = ({
                                       : "bg-white/5"
                                   }`}
                                 >
-                                  <Info
+                                  <IconInfo
                                     className={`h-2.5 w-2.5 shrink-0 ${
                                       isEventActive
                                         ? "text-black/40"
@@ -759,7 +760,7 @@ const SelectionTimelineCalendar: React.FC<SelectionTimelineCalendarProps> = ({
                                 : "bg-white/5 opacity-50"
                             }`}
                           >
-                            <Info
+                            <IconInfo
                               className={`h-2.5 w-2.5 shrink-0 ${
                                 isEventActive
                                   ? "text-black/40"
@@ -817,7 +818,7 @@ const SelectionTimelineCalendar: React.FC<SelectionTimelineCalendarProps> = ({
 
               <div className="space-y-2.5">
                 <div className="flex items-center gap-2 text-neutral-400">
-                  <Calendar className="h-3 w-3" />
+                  <IconCalendar className="h-3 w-3" />
                   <span className="text-[10px] font-medium tracking-wide">
                     {tooltipData.event.dateStr}
                     {tooltipData.event.startTime &&
@@ -831,7 +832,7 @@ const SelectionTimelineCalendar: React.FC<SelectionTimelineCalendarProps> = ({
                 </div>
 
                 <div className="flex items-start gap-2 text-neutral-300">
-                  <Clock className="h-3 w-3 shrink-0 translate-y-0.5" />
+                  <IconClock className="h-3 w-3 shrink-0 translate-y-0.5" />
                   <p className="text-[10px] leading-relaxed italic">
                     {tooltipData.event.description}
                   </p>
@@ -876,7 +877,7 @@ const SelectionTimelineCalendar: React.FC<SelectionTimelineCalendarProps> = ({
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-1.5">
-                    <Calendar className="h-2.5 w-2.5 text-neutral-500" />
+                    <IconCalendar className="h-2.5 w-2.5 text-neutral-500" />
                     <label className="text-[8px] font-bold text-neutral-500 uppercase">
                       Start Range
                     </label>
@@ -892,7 +893,7 @@ const SelectionTimelineCalendar: React.FC<SelectionTimelineCalendarProps> = ({
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-1.5">
-                    <Calendar className="h-2.5 w-2.5 text-neutral-500" />
+                    <IconCalendar className="h-2.5 w-2.5 text-neutral-500" />
                     <label className="text-[8px] font-bold text-neutral-500 uppercase">
                       End Range
                     </label>
@@ -911,7 +912,7 @@ const SelectionTimelineCalendar: React.FC<SelectionTimelineCalendarProps> = ({
               <div className="space-y-2.5 rounded-lg bg-white/5 p-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5 text-neutral-400">
-                    <Clock className="h-3 w-3" />
+                    <IconClock className="h-3 w-3" />
                     <span className="text-[10px] font-medium">Simulation</span>
                   </div>
                   <div className="bg-gold-500/10 rounded px-1.5 py-0.5">
@@ -938,7 +939,7 @@ const SelectionTimelineCalendar: React.FC<SelectionTimelineCalendarProps> = ({
               </div>
 
               <div className="flex items-center gap-2 border-t border-white/5 pt-2 text-[9px] text-neutral-500 italic">
-                <Info className="h-2.5 w-2.5 shrink-0" />
+                <IconInfo className="h-2.5 w-2.5 shrink-0" />
                 <span>Simulated time overrides system for calendar logic.</span>
               </div>
             </div>

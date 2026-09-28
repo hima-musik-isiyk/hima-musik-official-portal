@@ -13,3 +13,9 @@ export * from "./components";
 export * from "./databases";
 export * from "./properties";
 export * from "./relations";
+
+/**
+ * Notion API version used for all calls.
+ * Must stay in sync with AGENTS.md.
+ */
+export const NOTION_API_VERSION = "2026-03-11";

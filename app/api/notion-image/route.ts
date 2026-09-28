@@ -18,6 +18,37 @@ const STORAGE_BUCKET =
 
 const warnedStorageMessages = new Set<string>();
 
+/**
+ * Allowed image hosts for this proxy (SSRF protection).
+ * Notion serves images from its own S3 bucket plus a handful of CDN hosts,
+ * and we also allow the project's Supabase storage.
+ */
+const ALLOWED_IMAGE_HOSTS: Array<string | RegExp> = [
+  // Notion S3 buckets (us-west-2 / amazonaws variants)
+  /^prod-files-secure\.s3\.[a-z0-9-]+\.amazonaws\.com$/,
+  /^prod-files-secure\.s3\.amazonaws\.com$/,
+  /^s3\.us-west-2\.amazonaws\.com$/,
+  /^secure\.notion-static\.com$/,
+  // Notion CDN
+  "www.notion.so",
+  "notion.so",
+  /^images\.unsplash\.com$/,
+  // Supabase storage (this project's public buckets)
+  /^[a-z0-9]+\.supabase\.co$/,
+  // Extra hosts, comma-separated (e.g. "i.imgur.com,cdn.example.com")
+  ...(process.env.NOTION_IMAGE_EXTRA_HOSTS ?? "")
+    .split(",")
+    .map((host) => host.trim().toLowerCase())
+    .filter(Boolean),
+];
+
+function isAllowedImageHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return ALLOWED_IMAGE_HOSTS.some((allowed) =>
+    typeof allowed === "string" ? host === allowed : allowed.test(host),
+  );
+}
+
 function hashKey(value: string): string {
   return createHash("sha1").update(value).digest("hex");
 }
@@ -261,6 +292,13 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // SSRF guard: never fetch arbitrary hosts server-side. Unknown hosts
+  // (e.g. Notion "external" covers) are redirected so the browser loads
+  // them directly instead of through this proxy.
+  if (!isAllowedImageHost(sourceUrl.hostname)) {
+    return makeRedirectResponse(sourceUrl);
+  }
+
   const cacheKey =
     cacheKeyParam ||
     `${sourceUrl.protocol}//${sourceUrl.host}${sourceUrl.pathname}`;
@@ -295,11 +333,16 @@ export async function GET(request: NextRequest) {
         "User-Agent": "HIMA-Portal-Image-Cache/1.0",
       },
       cache: "no-store",
+      redirect: "manual",
     });
   } catch {
     if (isVercel) {
       return makeUpstreamErrorResponse(502);
     }
+    return makeRedirectResponse(sourceUrl);
+  }
+
+  if (upstream.status >= 300 && upstream.status < 400) {
     return makeRedirectResponse(sourceUrl);
   }
 

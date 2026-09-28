@@ -2,6 +2,8 @@ import { Client } from "@notionhq/client";
 import type { BlockObjectResponse } from "@notionhq/client/build/src/api-endpoints";
 import { cache } from "react";
 
+import { NOTION_API_VERSION } from "@/lib/glossarium";
+
 import { unstable_cache } from "./cache";
 import { classifyEventLifecycle, getEventDateSortValue } from "./event-dates";
 import {
@@ -124,7 +126,7 @@ function createNotionClient() {
   }
   return new Client({
     auth: token,
-    notionVersion: "2026-03-11",
+    notionVersion: NOTION_API_VERSION,
     fetch: (url, init) => {
       return fetch(url, {
         ...init,

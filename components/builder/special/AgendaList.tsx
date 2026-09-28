@@ -22,6 +22,7 @@ import {
 import type { KKMGroup } from "@/lib/kkm-data";
 import type { EventEntryMeta, EventsCollection } from "@/lib/notion";
 import { toEventCoverUrl } from "@/lib/notion-image";
+import { useCachedFetch } from "@/lib/useCachedFetch";
 const DAYS_OF_WEEK = ["Sen", "Sel", "Rab", "Kam", "Jum", "Sab", "Min"];
 const ITEMS_PER_PAGE = 5;
 const ACTION_RADIUS = { borderRadius: "var(--radius-action)" } as const;
@@ -825,67 +826,21 @@ export default function AgendaList({
   value2?: string;
   value3?: string;
 }) {
-  const [data, setData] = useState({
-    collection: initialCollection || {
-      upcoming: [],
-      ongoing: [],
-      past: [],
-      announcements: [],
+  const { data, isLoading } = useCachedFetch({
+    url: "/api/agenda",
+    cacheKey: "hima_agenda_cache",
+    hasInitialData:
+      initialCollection !== undefined || initialKkmGroups !== undefined,
+    initialData: {
+      collection: initialCollection || {
+        upcoming: [],
+        ongoing: [],
+        past: [],
+        announcements: [],
+      },
+      kkmGroups: initialKkmGroups || [],
     },
-    kkmGroups: initialKkmGroups || [],
   });
-  const hasInitialData =
-    initialCollection !== undefined || initialKkmGroups !== undefined;
-  const [isLoading, setIsLoading] = useState(!hasInitialData);
-
-  useEffect(() => {
-    if (hasInitialData) return;
-
-    // Try to load from localStorage cache first to bootstrap client-side SWR
-    try {
-      const cached = window.localStorage.getItem("hima_agenda_cache");
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        setData((prev) => ({
-          collection:
-            prev.collection.upcoming.length > 0 ||
-            prev.collection.ongoing.length > 0 ||
-            prev.collection.past.length > 0 ||
-            prev.collection.announcements.length > 0
-              ? prev.collection
-              : parsed.collection || prev.collection,
-          kkmGroups:
-            prev.kkmGroups && prev.kkmGroups.length > 0
-              ? prev.kkmGroups
-              : parsed.kkmGroups || [],
-        }));
-      }
-    } catch {}
-
-    const fetchAgendaData = async () => {
-      try {
-        const res = await fetch("/api/agenda");
-        if (res.ok) {
-          const result = await res.json();
-          if (result.success && result.data) {
-            setData(result.data);
-            if (typeof window !== "undefined") {
-              window.localStorage.setItem(
-                "hima_agenda_cache",
-                JSON.stringify(result.data),
-              );
-            }
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch fresh agenda data:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchAgendaData();
-  }, [hasInitialData]);
 
   const collection = data.collection;
   const kkmGroups = data.kkmGroups;

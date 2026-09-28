@@ -1,22 +1,23 @@
 "use client";
 
 import { unzipSync, zipSync } from "fflate";
-import {
-  ChevronLeft,
-  ChevronRight,
-  FileDown,
-  Layers,
-  Loader2,
-  Minus,
-  Package,
-  Plus,
-  RefreshCw,
-  Trash2,
-  X,
-  Zap,
-} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconFileDown,
+  IconLayers,
+  IconLoader,
+  IconMinus,
+  IconPackage,
+  IconPlus,
+  IconRefreshCw,
+  IconTrash,
+  IconX,
+  IconZap,
+} from "@/components/Icons";
 
 function useCarouselScroll(
   scrollRef: React.RefObject<HTMLDivElement | null>,
@@ -105,6 +106,9 @@ const canvasWidth = 1080;
 const canvasHeight = 1440;
 const targetAspect = canvasWidth / canvasHeight;
 const apiPath = "/api/instagram-secret-page";
+async function adminFetch(init: RequestInit = {}): Promise<Response> {
+  return fetch(apiPath, { cache: "no-store", ...init });
+}
 
 type InstagramFrame = {
   id: string;
@@ -435,7 +439,7 @@ export default function InstagramSecretPage() {
     setError("");
 
     try {
-      const response = await fetch(apiPath, { cache: "no-store" });
+      const response = await adminFetch();
       const data = await response.json();
 
       if (!response.ok) throw new Error(data.error ?? "Load failed.");
@@ -499,7 +503,7 @@ export default function InstagramSecretPage() {
           const formData = new FormData();
           formData.set("payload", JSON.stringify(payload));
 
-          const response = await fetch(apiPath, {
+          const response = await adminFetch({
             method: "POST",
             body: formData,
           });
@@ -537,7 +541,7 @@ export default function InstagramSecretPage() {
       const formData = new FormData();
       formData.set("payload", JSON.stringify(payload));
 
-      const response = await fetch(apiPath, {
+      const response = await adminFetch({
         method: "POST",
         body: formData,
       });
@@ -584,7 +588,7 @@ export default function InstagramSecretPage() {
         );
         frames.forEach((frame) => formData.append("frames", frame.file));
 
-        const response = await fetch(apiPath, {
+        const response = await adminFetch({
           method: "POST",
           body: formData,
         });
@@ -616,7 +620,7 @@ export default function InstagramSecretPage() {
     setError("");
 
     try {
-      const response = await fetch(apiPath, {
+      const response = await adminFetch({
         method: "DELETE",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ id: item.id }),
@@ -641,7 +645,7 @@ export default function InstagramSecretPage() {
     setError("");
 
     try {
-      const response = await fetch(apiPath, {
+      const response = await adminFetch({
         method: "DELETE",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ row }),
@@ -730,9 +734,9 @@ export default function InstagramSecretPage() {
               onClick={() => void loadManifest()}
             >
               {isLoading ? (
-                <Loader2 className="size-4 animate-spin" />
+                <IconLoader className="size-4 animate-spin" />
               ) : (
-                <RefreshCw className="size-4" />
+                <IconRefreshCw className="size-4" />
               )}
               sync
             </button>
@@ -748,7 +752,7 @@ export default function InstagramSecretPage() {
             }`}
           >
             <div className="flex items-center gap-2">
-              {busy && <Loader2 className="size-4 animate-spin" />}
+              {busy && <IconLoader className="size-4 animate-spin" />}
               <span>{error || busy}</span>
             </div>
             {error && (
@@ -756,7 +760,7 @@ export default function InstagramSecretPage() {
                 onClick={() => setError("")}
                 className="text-neutral-500 hover:text-white"
               >
-                <X className="size-4" />
+                <IconX className="size-4" />
               </button>
             )}
           </div>
@@ -785,7 +789,7 @@ export default function InstagramSecretPage() {
                         {isCellLoading && (
                           <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm">
                             <div className="flex flex-col items-center gap-2 text-blue-400">
-                              <Loader2 className="size-6 animate-spin" />
+                              <IconLoader className="size-6 animate-spin" />
                               <span className="text-[10px] font-bold tracking-widest text-white uppercase">
                                 Fetching
                               </span>
@@ -854,9 +858,9 @@ export default function InstagramSecretPage() {
                               className="flex size-11 flex-col items-center justify-center rounded-full border border-red-500/30 bg-red-500/10 text-red-400 shadow-lg shadow-red-500/10 backdrop-blur transition hover:scale-110 hover:bg-red-500 hover:text-white disabled:cursor-wait disabled:opacity-50"
                             >
                               {busy ? (
-                                <Loader2 className="size-4 animate-spin" />
+                                <IconLoader className="size-4 animate-spin" />
                               ) : (
-                                <Trash2 className="size-4 fill-current" />
+                                <IconTrash className="size-4 fill-current" />
                               )}
                               <span className="text-[7px] font-bold uppercase">
                                 Row
@@ -884,12 +888,12 @@ export default function InstagramSecretPage() {
                                 >
                                   {isCanva ? (
                                     <>
-                                      <Zap className="size-3 rotate-90 fill-current" />{" "}
+                                      <IconZap className="size-3 rotate-90 fill-current" />{" "}
                                       Canva Tap
                                     </>
                                   ) : (
                                     <>
-                                      <Layers className="size-3 rotate-90" />{" "}
+                                      <IconLayers className="size-3 rotate-90" />{" "}
                                       Manual
                                     </>
                                   )}
@@ -1005,7 +1009,7 @@ function PlaceholderCell({
             onClick={onUpload}
             className="grid size-12 place-items-center rounded-full border border-white/15 bg-black/35 text-neutral-400 transition hover:border-white/35 hover:text-white disabled:cursor-wait disabled:opacity-60"
           >
-            <Plus className="size-6" />
+            <IconPlus className="size-6" />
           </button>
           <span className="text-[11px] font-medium tracking-[0.08em] text-neutral-500 uppercase">
             Import
@@ -1098,9 +1102,9 @@ function RowCanvaButton({
           className="flex size-11 flex-col items-center justify-center rounded-full border border-blue-500/30 bg-blue-500/10 text-blue-400 shadow-lg shadow-blue-500/10 backdrop-blur transition hover:scale-110 hover:bg-blue-500 hover:text-white disabled:cursor-wait disabled:opacity-50"
         >
           {busy ? (
-            <Loader2 className="size-4 animate-spin" />
+            <IconLoader className="size-4 animate-spin" />
           ) : (
-            <Zap className="size-4 fill-current" />
+            <IconZap className="size-4 fill-current" />
           )}
           <span className="text-[7px] font-bold uppercase">Row</span>
         </button>
@@ -1125,7 +1129,7 @@ function RowCanvaButton({
                   onClick={() => setIsLinking(false)}
                   className="text-neutral-400 transition hover:text-white"
                 >
-                  <X className="size-5" />
+                  <IconX className="size-5" />
                 </button>
               </div>
 
@@ -1187,7 +1191,7 @@ function RowCanvaButton({
                                     onClick={() => updatePage(key, i, -1)}
                                     className="flex size-6 items-center justify-center rounded text-neutral-500 transition hover:bg-white/10 hover:text-white"
                                   >
-                                    <Minus className="size-3" />
+                                    <IconMinus className="size-3" />
                                   </button>
                                   <span className="text-[11px] font-bold text-white">
                                     {p}
@@ -1197,7 +1201,7 @@ function RowCanvaButton({
                                     onClick={() => updatePage(key, i, 1)}
                                     className="flex size-6 items-center justify-center rounded text-neutral-500 transition hover:bg-white/10 hover:text-white"
                                   >
-                                    <Plus className="size-3" />
+                                    <IconPlus className="size-3" />
                                   </button>
                                 </div>
                                 <div className="my-0.5 h-px w-full bg-white/5" />
@@ -1206,7 +1210,7 @@ function RowCanvaButton({
                                   onClick={() => removePage(key, i)}
                                   className="flex h-5 w-full items-center justify-center rounded text-neutral-600 transition hover:bg-red-500/20 hover:text-red-400"
                                 >
-                                  <X className="size-3" />
+                                  <IconX className="size-3" />
                                 </button>
                               </div>
                             ))}
@@ -1217,7 +1221,7 @@ function RowCanvaButton({
                             onClick={() => addPage(key)}
                             className="flex w-full items-center justify-center gap-1 rounded-lg border border-dashed border-white/10 py-2 text-[9px] font-bold text-neutral-500 transition hover:border-blue-500/50 hover:bg-blue-500/5 hover:text-blue-400"
                           >
-                            <Plus className="size-3" /> Add
+                            <IconPlus className="size-3" /> Add
                           </button>
                         </div>
                       </div>
@@ -1399,7 +1403,7 @@ function PostCell({
               onAddCarousel();
             }}
           >
-            <Layers className="size-4" />
+            <IconLayers className="size-4" />
           </button>
         </QuickTooltip>
         <QuickTooltip text="Replace">
@@ -1411,7 +1415,7 @@ function PostCell({
               onEdit();
             }}
           >
-            <RefreshCw className="size-4" />
+            <IconRefreshCw className="size-4" />
           </button>
         </QuickTooltip>
         <QuickTooltip text="Download original">
@@ -1423,7 +1427,7 @@ function PostCell({
               onDownload();
             }}
           >
-            <FileDown className="size-4" />
+            <IconFileDown className="size-4" />
           </button>
         </QuickTooltip>
         <QuickTooltip text="Download chopped (zip)">
@@ -1435,7 +1439,7 @@ function PostCell({
               onDownload();
             }}
           >
-            <Package className="size-4" />
+            <IconPackage className="size-4" />
           </button>
         </QuickTooltip>
         <QuickTooltip text="Delete">
@@ -1447,7 +1451,7 @@ function PostCell({
               onDelete();
             }}
           >
-            <Trash2 className="size-4" />
+            <IconTrash className="size-4" />
           </button>
         </QuickTooltip>
       </div>
@@ -1558,7 +1562,7 @@ function PreviewModal({
                 disabled={activeIndex === 0}
                 aria-label="Previous image"
               >
-                <ChevronLeft className="size-5" />
+                <IconChevronLeft className="size-5" />
               </button>
               <button
                 type="button"
@@ -1570,7 +1574,7 @@ function PreviewModal({
                 disabled={activeIndex === item.frames.length - 1}
                 aria-label="Next image"
               >
-                <ChevronRight className="size-5" />
+                <IconChevronRight className="size-5" />
               </button>
             </>
           )}
@@ -1623,7 +1627,7 @@ function PreviewModal({
                 onAddCarousel();
               }}
             >
-              <Layers className="size-5" />
+              <IconLayers className="size-5" />
             </button>
           </QuickTooltip>
           <QuickTooltip text="Replace">
@@ -1635,7 +1639,7 @@ function PreviewModal({
                 onEdit();
               }}
             >
-              <RefreshCw className="size-5" />
+              <IconRefreshCw className="size-5" />
             </button>
           </QuickTooltip>
           <QuickTooltip text="Download original">
@@ -1647,7 +1651,7 @@ function PreviewModal({
                 onDownload();
               }}
             >
-              <FileDown className="size-5" />
+              <IconFileDown className="size-5" />
             </button>
           </QuickTooltip>
           <QuickTooltip text="Download chopped (zip)">
@@ -1659,7 +1663,7 @@ function PreviewModal({
                 onDownload();
               }}
             >
-              <Package className="size-5" />
+              <IconPackage className="size-5" />
             </button>
           </QuickTooltip>
           <div className="mx-1 h-6 w-px bg-white/10" />
@@ -1672,7 +1676,7 @@ function PreviewModal({
                 onDelete();
               }}
             >
-              <Trash2 className="size-5" />
+              <IconTrash className="size-5" />
             </button>
           </QuickTooltip>
         </div>
@@ -1682,7 +1686,7 @@ function PreviewModal({
           className="mt-2 grid size-10 place-items-center rounded-full bg-white/10 text-white/50 transition hover:bg-white/20 hover:text-white"
           onClick={onClose}
         >
-          <X className="size-5" />
+          <IconX className="size-5" />
         </button>
       </div>
     </div>

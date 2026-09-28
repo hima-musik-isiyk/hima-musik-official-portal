@@ -1,7 +1,13 @@
 "use client";
 
-import { AlertTriangle, CheckCircle, Loader2, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
+
+import {
+  IconAlertTriangle,
+  IconCheckCircle,
+  IconLoader,
+  IconRefreshCw,
+} from "./Icons";
 
 export default function PreviewActionBar() {
   const [syncStatus, setSyncStatus] = useState<
@@ -66,11 +72,11 @@ export default function PreviewActionBar() {
         {/* Status Message */}
         <div className="flex items-center gap-2 text-xs font-semibold tracking-wider uppercase">
           {syncStatus === "success" ? (
-            <CheckCircle className="h-4 w-4 animate-bounce text-green-400" />
+            <IconCheckCircle className="h-4 w-4 animate-bounce text-green-400" />
           ) : syncStatus === "syncing" ? (
-            <Loader2 className="text-gold-400 h-4 w-4 animate-spin" />
+            <IconLoader className="text-gold-400 h-4 w-4 animate-spin" />
           ) : (
-            <AlertTriangle className="text-gold-400 h-4 w-4" />
+            <IconAlertTriangle className="text-gold-400 h-4 w-4" />
           )}
           <span
             className={
@@ -95,17 +101,17 @@ export default function PreviewActionBar() {
         >
           {syncStatus === "syncing" ? (
             <>
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <IconLoader className="h-3.5 w-3.5 animate-spin" />
               Menyinkronkan...
             </>
           ) : syncStatus === "cooldown" ? (
             <>
-              <RefreshCw className="h-3.5 w-3.5 opacity-45" />
+              <IconRefreshCw className="h-3.5 w-3.5 opacity-45" />
               Tunggu {cooldownTime}s
             </>
           ) : (
             <>
-              <RefreshCw className="h-3.5 w-3.5 transition-transform duration-500 group-hover:rotate-180" />
+              <IconRefreshCw className="h-3.5 w-3.5 transition-transform duration-500 group-hover:rotate-180" />
               Sinkronkan ke Website Publik
             </>
           )}
