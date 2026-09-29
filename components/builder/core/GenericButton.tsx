@@ -3,6 +3,8 @@
 import Link from "next/link";
 import React from "react";
 
+import { cleanCmsValue } from "@/lib/cms-placeholders";
+
 interface GenericButtonProps {
   value1: string; // Button Title
   value2: string; // Button Description
@@ -24,7 +26,8 @@ export const GenericButton: React.FC<GenericButtonProps> = ({
     variation1 === "1" || variation1?.toLowerCase().includes("description");
   const labelKey = value1.trim().toLowerCase();
   const rawHref = href?.trim() ?? "";
-  const rawValue3 = value3?.trim() ?? "";
+  // Unfilled Notion rows echo the registry label ("Button Link To"); treat as empty.
+  const rawValue3 = cleanCmsValue(value3, ["Button Link To"]);
   const rawValue3Lower = rawValue3.toLowerCase();
 
   let resolvedTarget = rawHref;

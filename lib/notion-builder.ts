@@ -1,3 +1,5 @@
+import { cacheLife, cacheTag } from "next/cache";
+
 import { unstable_cache } from "./cache";
 import { cleanCmsValue } from "./cms-placeholders";
 import {
@@ -418,28 +420,36 @@ export async function syncContainerCMSSnapshot() {
   };
 }
 
-export const fetchContainerCMSCached = unstable_cache(
-  async () => {
-    try {
-      return await fetchContainerCMSReadThrough();
-    } catch (error) {
-      console.error(
-        "fetchContainerCMSCached failed, returning fallback:",
-        error,
-      );
-      return {
-        pages: [],
-        variables: {},
-        groupCategories: {},
-        componentRegistry: {},
-        footer: [],
-        redirects: [],
-      };
-    }
-  },
-  ["notion-container"],
-  { revalidate: 60, tags: ["notion-container"] },
-);
+// Uses "use cache" (not unstable_cache) so PPR resumes replay the exact CMS
+// data the static shell was prerendered with. unstable_cache re-reads on
+// resume, so a CMS edit between prerender and resume changes the tree and
+// React fails with "Couldn't find all resumable slots".
+export async function fetchContainerCMSCached(): Promise<ContainerCMSData> {
+  "use cache";
+  // expire must stay >= 5 min, otherwise Next treats the entry as dynamic and
+  // excludes it from the prerendered shell. Freshness comes from revalidate
+  // plus revalidateTag("notion-container") in lib/cms-sync.ts.
+  cacheLife({
+    stale: 30,
+    revalidate: process.env.NODE_ENV === "production" ? 60 : 1,
+    expire: 3600,
+  });
+  cacheTag("notion-container");
+
+  try {
+    return await fetchContainerCMSReadThrough();
+  } catch (error) {
+    console.error("fetchContainerCMSCached failed, returning fallback:", error);
+    return {
+      pages: [],
+      variables: {},
+      groupCategories: {},
+      componentRegistry: {},
+      footer: [],
+      redirects: [],
+    };
+  }
+}
 
 /**
  * Get the Master Page database ID from Container CMS
