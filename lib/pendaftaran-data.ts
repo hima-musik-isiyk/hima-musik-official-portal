@@ -8,6 +8,8 @@ export type Division = {
   skills: string[];
   commitment: string;
   openPositions?: string[];
+  /** Jabatan open to the newest angkatan (Tipe Jabatan "Staf Muda"). */
+  juniorPositions?: string[];
 };
 
 export const divisions: Division[] = [

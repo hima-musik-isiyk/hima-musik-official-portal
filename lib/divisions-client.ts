@@ -5,6 +5,7 @@ const STORAGE_KEY = "hima_divisions_cache";
 export interface DivisionsResponse {
   divisions: Division[];
   angkatanList: string[];
+  juniorAngkatan?: string | null;
 }
 
 let inMemoryDivisions: DivisionsResponse | null = null;

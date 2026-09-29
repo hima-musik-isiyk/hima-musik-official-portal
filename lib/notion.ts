@@ -2702,7 +2702,10 @@ export type Division = {
   skills: string[];
   commitment: string;
   openPositions?: string[];
+  juniorPositions?: string[];
 };
+
+export const JUNIOR_POSITION_TYPE = "Staf Muda";
 
 /**
  * An SDM row is an open recruitment slot when its status is "Rekrutmen" and
@@ -2745,6 +2748,8 @@ export function getRecruitmentSlotLabel(
 export async function fetchDivisionsFromNotion(): Promise<{
   divisions: Division[];
   angkatanList: string[];
+  /** Newest angkatan; may only apply for "Staf Muda" jabatan. */
+  juniorAngkatan?: string | null;
 }> {
   const structDbId = DB_STRUKTUR_ORGANISASI;
   const sdmDbId = DB_SDM_EVALUASI;
@@ -2917,6 +2922,17 @@ export async function fetchDivisionsFromNotion(): Promise<{
           getRichText(page, "Commitment") ||
           "",
         openPositions: Array.from(new Set(openPositions)),
+        juniorPositions: Array.from(
+          new Set(
+            divisionRecruitments
+              .filter((rp) =>
+                getRelationIds(rp, PROP_SDM.TIPE_JABATAN).some(
+                  (id) => jobdeskMap.get(id) === JUNIOR_POSITION_TYPE,
+                ),
+              )
+              .map((rp) => getRecruitmentSlotLabel(rp, jobdeskMap)),
+          ),
+        ),
       };
     });
 
@@ -2924,7 +2940,10 @@ export async function fetchDivisionsFromNotion(): Promise<{
     // are not offered in the form.
     const divisions = allDivisions.filter((division) => division.slots > 0);
 
-    return { divisions, angkatanList };
+    const juniorAngkatan =
+      cms?.variables?.CURRENT_YEAR?.trim() || angkatanList.at(-1) || null;
+
+    return { divisions, angkatanList, juniorAngkatan };
   } catch (error) {
     console.error("[fetchDivisionsFromNotion] Error:", error);
     const { divisions: staticDivs } = await import("./pendaftaran-data");

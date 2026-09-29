@@ -544,8 +544,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const { divisions: openDivisions, angkatanList } =
-      await fetchDivisionsFromNotion();
+    const {
+      divisions: openDivisions,
+      angkatanList,
+      juniorAngkatan,
+    } = await fetchDivisionsFromNotion();
+    const isJuniorApplicant =
+      Boolean(juniorAngkatan) && angkatan === juniorAngkatan;
     const VALID_ANGKATAN = angkatanList;
 
     // Only divisions/positions that still have an open "Rekrutmen" slot.
@@ -561,6 +566,13 @@ export async function POST(request: Request) {
       const positions = division.openPositions ?? [];
       if (positions.length > 0 && !positions.includes(position)) {
         return `Jabatan pilihan ${label} sudah terisi atau tidak tersedia. Silakan pilih jabatan lain.`;
+      }
+      if (
+        isJuniorApplicant &&
+        division.juniorPositions &&
+        !division.juniorPositions.includes(position)
+      ) {
+        return `Angkatan ${juniorAngkatan} hanya dapat mendaftar sebagai Staf Muda. Silakan ganti jabatan pilihan ${label}.`;
       }
       return null;
     };

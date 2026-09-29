@@ -73,18 +73,21 @@ export default function PendaftaranForm() {
     "2024",
     "2025",
   ]);
+  const [juniorAngkatan, setJuniorAngkatan] = useState<string | null>(null);
 
   useEffect(() => {
     const cached = readCachedDivisions();
     if (cached) {
       setDivisions(cached.divisions);
       if (cached.angkatanList) setAngkatanList(cached.angkatanList);
+      setJuniorAngkatan(cached.juniorAngkatan ?? null);
     }
 
     fetchDivisionsOnce()
       .then((res) => {
         setDivisions(res.divisions);
         if (res.angkatanList) setAngkatanList(res.angkatanList);
+        setJuniorAngkatan(res.juniorAngkatan ?? null);
         setHasLiveDivisions(true);
       })
       .catch((err) => console.error("Error fetching divisions in form:", err));
@@ -175,6 +178,26 @@ export default function PendaftaranForm() {
       ? "Posisi ini hanya tersedia untuk angkatan 2024\u20132025."
       : "";
 
+  // Newest angkatan may only apply for Staf Muda jabatan.
+  const isJuniorApplicant =
+    Boolean(juniorAngkatan) && formData.angkatan === juniorAngkatan;
+  const isJuniorBlocked = (divisionId: string, position: string) => {
+    if (!isJuniorApplicant || !divisionId || !position) return false;
+    const division = divisions.find((d) => d.id === divisionId);
+    return Boolean(
+      division?.juniorPositions && !division.juniorPositions.includes(position),
+    );
+  };
+  const juniorBlockedChoices = [
+    isJuniorBlocked(formData.firstChoice, formData.firstChoicePosition) && "1",
+    isJuniorBlocked(formData.secondChoice, formData.secondChoicePosition) &&
+      "2",
+  ].filter(Boolean);
+  const juniorPositionError =
+    juniorBlockedChoices.length > 0
+      ? `Angkatan ${juniorAngkatan} tidak dapat mendaftar sebagai Staf Penuh, hanya Staf Muda. Silakan ganti jabatan pilihan ${juniorBlockedChoices.join(" dan ")}.`
+      : "";
+
   const isStepComplete = (stepId: number): boolean => {
     if (stepId === 0) {
       const firstDiv = divisions.find((d) => d.id === formData.firstChoice);
@@ -196,7 +219,8 @@ export default function PendaftaranForm() {
         hasFirstPos &&
         hasSecondPos &&
         formData.angkatan &&
-        !isAngkatanRestricted,
+        !isAngkatanRestricted &&
+        !juniorPositionError,
       );
     }
     if (stepId === 1) {
@@ -1119,6 +1143,15 @@ export default function PendaftaranForm() {
                       className="mt-2 text-sm text-amber-500/80"
                     >
                       {angkatanError}
+                    </p>
+                  )}
+                  {juniorPositionError && (
+                    <p
+                      data-error="true"
+                      role="alert"
+                      className="mt-2 text-sm text-amber-500/80"
+                    >
+                      {juniorPositionError}
                     </p>
                   )}
                 </div>
