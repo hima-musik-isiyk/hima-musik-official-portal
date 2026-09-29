@@ -1,6 +1,8 @@
 import Link from "next/link";
 import React from "react";
 
+import ScrollToTopOnMount from "@/components/ScrollToTopOnMount";
+
 export const metadata = {
   title: "404 — Halaman Tidak Ditemukan | HIMA Musik",
   description: "Halaman yang Anda cari tidak ditemukan atau telah dipindahkan.",
@@ -9,6 +11,7 @@ export const metadata = {
 export default function NotFound() {
   return (
     <div className="mx-auto flex min-h-[60vh] max-w-4xl flex-col items-center justify-center px-4 py-16 text-center">
+      <ScrollToTopOnMount />
       {/* Section Header Convention */}
       <div className="mb-6 flex items-center gap-4">
         <span
