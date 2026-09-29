@@ -24,6 +24,9 @@ import {
   DB_TAHAPAN_REKRUTMEN,
   DB_TUGAS_UTAMA_DIVISI,
   PROP_KKM,
+  PROP_SDM,
+  PROP_STRUKTUR_ORGANISASI,
+  PROP_TUGAS_UTAMA_DIVISI,
 } from "./glossarium";
 import type { KKMGroup } from "./kkm-data";
 import {
@@ -2698,6 +2701,7 @@ export type Division = {
   tasks: string[];
   skills: string[];
   commitment: string;
+  openPositions?: string[];
 };
 
 export async function fetchDivisionsFromNotion(): Promise<{
@@ -2725,20 +2729,31 @@ export async function fetchDivisionsFromNotion(): Promise<{
       const { divisions: staticDivs } = await import("./pendaftaran-data");
       return { divisions: staticDivs, angkatanList: ["2023", "2024", "2025"] };
     }
-    const structResponse = await client.dataSources.query({
-      data_source_id: structDataSourceId,
-    });
-    const structPages = structResponse.results as NotionPage[];
+    const queryAllPages = async (dataSourceId: string) => {
+      const pages: NotionPage[] = [];
+      let cursor: string | undefined;
+      do {
+        const response = await client.dataSources.query({
+          data_source_id: dataSourceId,
+          start_cursor: cursor,
+          page_size: 100,
+        });
+        pages.push(...(response.results as NotionPage[]));
+        cursor = response.has_more
+          ? (response.next_cursor ?? undefined)
+          : undefined;
+      } while (cursor);
+      return pages;
+    };
+
+    const structPages = await queryAllPages(structDataSourceId);
 
     const sdmDataSourceId = await resolveDataSourceIdSafe(sdmDbId);
     if (!sdmDataSourceId) {
       const { divisions: staticDivs } = await import("./pendaftaran-data");
       return { divisions: staticDivs, angkatanList: ["2023", "2024", "2025"] };
     }
-    const sdmResponse = await client.dataSources.query({
-      data_source_id: sdmDataSourceId,
-    });
-    const sdmPages = sdmResponse.results as NotionPage[];
+    const sdmPages = await queryAllPages(sdmDataSourceId);
 
     const { fetchContainerCMS } = await import("./notion-builder");
     const cms = await fetchContainerCMS();
@@ -2747,11 +2762,13 @@ export async function fetchDivisionsFromNotion(): Promise<{
 
     const batchMap = await fetchBatchMap();
 
+    // Each SDM row with status "Rekrutmen" in the current batch is one open
+    // slot. Filled slots flip to "Aktif" and must no longer be offered.
     const recruitmentPages = sdmPages.filter((page) => {
-      const status = getSelect(page, "Status Keaktifan");
+      const status = getSelect(page, PROP_SDM.STATUS_KEAKTIFAN);
       if (status !== "Rekrutmen") return false;
 
-      const relatedBatchIds = getRelationIds(page, "03 Batch Pendaftaran");
+      const relatedBatchIds = getRelationIds(page, PROP_SDM.BATCH_PENDAFTARAN);
       const relatedBatch = relatedBatchIds
         .map((id) => batchMap[id])
         .find(Boolean);
@@ -2765,16 +2782,13 @@ export async function fetchDivisionsFromNotion(): Promise<{
     if (tasksDbId) {
       const tasksDataSourceId = await resolveDataSourceIdSafe(tasksDbId);
       if (tasksDataSourceId) {
-        const tasksResponse = await client.dataSources.query({
-          data_source_id: tasksDataSourceId,
-        });
-        taskPages = tasksResponse.results as NotionPage[];
+        taskPages = await queryAllPages(tasksDataSourceId);
       }
     }
 
     const jobdeskIds = new Set<string>();
     recruitmentPages.forEach((page) => {
-      const propRole = getProperty(page, "04 Nama Jabatan");
+      const propRole = getProperty(page, PROP_SDM.NAMA_JABATAN);
       if (propRole?.type === "relation") {
         propRole.relation.forEach((r: { id: string }) => jobdeskIds.add(r.id));
       }
@@ -2830,21 +2844,26 @@ export async function fetchDivisionsFromNotion(): Promise<{
       angkatanList = ["2023", "2024", "2025"];
     }
 
-    const divisions = structPages.map((page) => {
-      const name = getTitleProperty(page, "Nama Divisi") || getTitle(page);
+    const allDivisions = structPages.map((page) => {
+      const name =
+        getTitleProperty(page, PROP_STRUKTUR_ORGANISASI.NAMA_DIVISI) ||
+        getTitle(page);
       const id = slugify(name);
-      const summary = getRichText(page, "Deskripsi Divisi");
-      const skills = getMultiSelect(page, "Skill Unik");
+      const summary = getRichText(
+        page,
+        PROP_STRUKTUR_ORGANISASI.DESKRIPSI_DIVISI,
+      );
+      const skills = getMultiSelect(page, PROP_STRUKTUR_ORGANISASI.SKILL_UNIK);
 
       const divisionRecruitments = recruitmentPages.filter((rp) => {
-        const relIds = getRelationIds(rp, "02 Struktur Organisasi");
+        const relIds = getRelationIds(rp, PROP_SDM.STRUKTUR_ORGANISASI);
         return relIds.includes(page.id);
       });
       const slots = divisionRecruitments.length;
 
       const openPositions = divisionRecruitments
         .flatMap((rp) => {
-          const propRole = getProperty(rp, "04 Nama Jabatan");
+          const propRole = getProperty(rp, PROP_SDM.NAMA_JABATAN);
           if (propRole?.type === "relation") {
             return propRole.relation.map((r: { id: string }) =>
               jobdeskMap.get(r.id),
@@ -2856,10 +2875,16 @@ export async function fetchDivisionsFromNotion(): Promise<{
 
       const divisionTasks = taskPages
         .filter((tp) => {
-          const relIds = getRelationIds(tp, "02 Struktur Organisasi");
+          const relIds = getRelationIds(
+            tp,
+            PROP_TUGAS_UTAMA_DIVISI.STRUKTUR_ORGANISASI,
+          );
           return relIds.includes(page.id);
         })
-        .map((tp) => getTitleProperty(tp, "Tugas") || getTitle(tp))
+        .map(
+          (tp) =>
+            getTitleProperty(tp, PROP_TUGAS_UTAMA_DIVISI.TUGAS) || getTitle(tp),
+        )
         .filter(Boolean);
 
       return {
@@ -2877,6 +2902,10 @@ export async function fetchDivisionsFromNotion(): Promise<{
         openPositions: Array.from(new Set(openPositions)),
       };
     });
+
+    // Divisions without an open "Rekrutmen" slot (e.g. BPH fully staffed)
+    // are not offered in the form.
+    const divisions = allDivisions.filter((division) => division.slots > 0);
 
     return { divisions, angkatanList };
   } catch (error) {

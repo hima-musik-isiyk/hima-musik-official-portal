@@ -214,9 +214,7 @@ async function writePendaftaranToNotion(data: {
           const title =
             titleProperty?.type === "title"
               ? titleProperty.title
-                  .map((text: { plain_text?: string }) =>
-                    text.plain_text || "",
-                  )
+                  .map((text: { plain_text?: string }) => text.plain_text || "")
                   .join("")
               : "";
           return slugify(title) === choiceSlug || p.id === choiceSlug;
@@ -252,7 +250,10 @@ async function writePendaftaranToNotion(data: {
           if (targetPosSlug) {
             const candidatesWithRoles = await Promise.all(
               candidates.map(async (candidate) => {
-                const roleIds = relatedPageIds(candidate, PROP_SDM.NAMA_JABATAN);
+                const roleIds = relatedPageIds(
+                  candidate,
+                  PROP_SDM.NAMA_JABATAN,
+                );
                 const roleTitles = await Promise.all(
                   roleIds.map((roleId) => fetchPageTitle(roleId)),
                 );
@@ -260,8 +261,8 @@ async function writePendaftaranToNotion(data: {
               }),
             );
             const match = candidatesWithRoles.find(({ roleTitles }) =>
-              roleTitles.some((roleTitle) =>
-                slugify(roleTitle) === targetPosSlug,
+              roleTitles.some(
+                (roleTitle) => slugify(roleTitle) === targetPosSlug,
               ),
             );
             if (match) sdmSlotId = match.candidate.id;
@@ -432,10 +433,7 @@ async function writePendaftaranToNotion(data: {
       properties[name] = {
         rich_text: [{ text: { content: data.portfolio } }],
       };
-    } else if (
-      name === PROP_PENDAFTARAN.STATUS_SELEKSI &&
-      type === "status"
-    ) {
+    } else if (name === PROP_PENDAFTARAN.STATUS_SELEKSI && type === "status") {
       properties[name] = { status: { name: "Masuk" } };
     } else if (type === "relation") {
       if (
@@ -549,8 +547,35 @@ export async function POST(request: Request) {
       );
     }
 
-    const { angkatanList } = await fetchDivisionsFromNotion();
+    const { divisions: openDivisions, angkatanList } =
+      await fetchDivisionsFromNotion();
     const VALID_ANGKATAN = angkatanList;
+
+    // Only divisions/positions that still have an open "Rekrutmen" slot.
+    const validateChoice = (
+      choice: string,
+      position: string,
+      label: string,
+    ): string | null => {
+      const division = openDivisions.find((d) => d.id === choice);
+      if (!division) {
+        return `Divisi pilihan ${label} sudah tidak membuka rekrutmen. Silakan pilih divisi lain.`;
+      }
+      const positions = division.openPositions ?? [];
+      if (positions.length > 0 && !positions.includes(position)) {
+        return `Jabatan pilihan ${label} sudah terisi atau tidak tersedia. Silakan pilih jabatan lain.`;
+      }
+      return null;
+    };
+
+    const choiceError =
+      validateChoice(firstChoice, firstChoicePosition, "1") ||
+      (secondChoice
+        ? validateChoice(secondChoice, secondChoicePosition, "2")
+        : null);
+    if (choiceError) {
+      return NextResponse.json({ error: choiceError }, { status: 400 });
+    }
 
     if (!angkatan || !VALID_ANGKATAN.includes(angkatan)) {
       return NextResponse.json(

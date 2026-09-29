@@ -66,6 +66,8 @@ const PHONE_PATTERN = /^(?:\+62|62|0)8\d{7,11}$/;
 
 export default function PendaftaranForm() {
   const [divisions, setDivisions] = useState<Division[]>(staticDivisions);
+  // True once the live Notion list arrives; cached/static lists may be stale.
+  const [hasLiveDivisions, setHasLiveDivisions] = useState(false);
   const [angkatanList, setAngkatanList] = useState<string[]>([
     "2023",
     "2024",
@@ -83,6 +85,7 @@ export default function PendaftaranForm() {
       .then((res) => {
         setDivisions(res.divisions);
         if (res.angkatanList) setAngkatanList(res.angkatanList);
+        setHasLiveDivisions(true);
       })
       .catch((err) => console.error("Error fetching divisions in form:", err));
   }, []);
@@ -433,6 +436,44 @@ export default function PendaftaranForm() {
     clearStoredState();
     setShowResetConfirm(false);
   };
+
+  // Drop restored choices whose division or position is no longer recruiting.
+  useEffect(() => {
+    if (!hasLiveDivisions) return;
+    const isOpen = (divisionId: string, position: string) => {
+      const division = divisions.find((d) => d.id === divisionId);
+      if (!division) return { division: false, position: false };
+      const positions = division.openPositions ?? [];
+      return {
+        division: true,
+        position: !position || positions.includes(position),
+      };
+    };
+
+    setFormData((prev) => {
+      const first = isOpen(prev.firstChoice, prev.firstChoicePosition);
+      const second = isOpen(prev.secondChoice, prev.secondChoicePosition);
+      const next = { ...prev };
+      if (prev.firstChoice && !first.division) {
+        next.firstChoice = "";
+        next.firstChoicePosition = "";
+      } else if (!first.position) {
+        next.firstChoicePosition = "";
+      }
+      if (prev.secondChoice && !second.division) {
+        next.secondChoice = "";
+        next.secondChoicePosition = "";
+      } else if (!second.position) {
+        next.secondChoicePosition = "";
+      }
+      const changed =
+        next.firstChoice !== prev.firstChoice ||
+        next.firstChoicePosition !== prev.firstChoicePosition ||
+        next.secondChoice !== prev.secondChoice ||
+        next.secondChoicePosition !== prev.secondChoicePosition;
+      return changed ? next : prev;
+    });
+  }, [divisions, hasLiveDivisions]);
 
   const handleFirstChoiceChange = (divisionId: string) => {
     setFormData((prev) => ({
