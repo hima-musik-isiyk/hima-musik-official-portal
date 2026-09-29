@@ -10,6 +10,8 @@ export type Division = {
   openPositions?: string[];
   /** Jabatan open to the newest angkatan (Tipe Jabatan "Staf Muda"). */
   juniorPositions?: string[];
+  /** Open slots per jabatan, Staf Muda rows collapsed into one entry. */
+  positionSlots?: Array<{ position: string; slots: number; isJunior: boolean }>;
 };
 
 export const divisions: Division[] = [

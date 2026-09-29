@@ -3,13 +3,13 @@
 import { usePathname } from "next/navigation";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import RotatingText, { RotatingTextRef } from "@/components/RotatingText";
 import { cleanCmsValue } from "@/lib/cms-placeholders";
 import {
   fetchDivisionsOnce,
   readCachedDivisions,
 } from "@/lib/divisions-client";
 import type {
+  PositionSlot,
   ProfilModularDivision,
   ProfilModularExecutive,
   ProfilModularMember,
@@ -357,18 +357,15 @@ const DivisionCard = ({
   name,
   members,
   slots,
-  openPositions,
+  positionSlots,
   showSlots = false,
 }: {
   name: string;
   members: Array<string | ProfilModularMember>;
   slots: number;
-  openPositions: string[];
+  positionSlots: PositionSlot[];
   showSlots?: boolean;
 }) => {
-  const [isHovered, setIsHovered] = useState(false);
-  const rotatingTextRef = useRef<RotatingTextRef | null>(null);
-
   const { leader, staffList } = useMemo(() => {
     const list: ParsedMember[] = members.map((m) => {
       if (typeof m === "string") {
@@ -395,27 +392,9 @@ const DivisionCard = ({
     };
   }, [members]);
 
-  const rotationTexts = useMemo(() => {
-    const defaultText = `${slots} ${slots === 1 ? "Slot" : "Slot"}`;
-    if (!openPositions || openPositions.length === 0) return [defaultText];
-    return [defaultText, ...openPositions];
-  }, [slots, openPositions]);
-
-  const handleMouseEnter = () => {
-    setIsHovered(true);
-    rotatingTextRef.current?.next();
-  };
-
-  const handleMouseLeave = () => {
-    setIsHovered(false);
-    rotatingTextRef.current?.reset();
-  };
-
   return (
     <div
       data-animate="up"
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
       className="group hover:border-gold-500/30 relative flex h-full cursor-default flex-col border border-white/10 bg-white/[0.02] p-5 text-left transition-all duration-1000 ease-out hover:bg-white/[0.04] md:p-6"
     >
       {/* Header: Division Title */}
@@ -467,35 +446,29 @@ const DivisionCard = ({
         </div>
 
         {/* Recruitment open positions (if recruitment active) */}
-        {showSlots && (slots > 0 || openPositions.length > 0) && (
+        {showSlots && slots > 0 && (
           <div className="mt-5 border-t border-white/5 pt-3">
             <div className="flex items-center justify-between text-xs text-neutral-400">
               <span className="font-mono text-[10px] tracking-wider uppercase">
                 Rekrutmen
               </span>
-              <span className="text-gold-300 font-serif">
-                <RotatingText
-                  ref={rotatingTextRef}
-                  texts={rotationTexts}
-                  mainClassName="overflow-hidden"
-                  staggerFrom="last"
-                  initial={{ y: "100%" }}
-                  animate={{ y: 0 }}
-                  exit={{ y: "-120%" }}
-                  staggerDuration={0.025}
-                  splitLevelClassName="overflow-hidden pb-0.5"
-                  transition={{
-                    type: "spring",
-                    damping: 30,
-                    stiffness: 400,
-                  }}
-                  rotationInterval={2500}
-                  splitBy="words"
-                  auto={isHovered}
-                  loop
-                />
-              </span>
+              <span className="text-gold-300 font-serif">{slots} Slot</span>
             </div>
+            {positionSlots.length > 0 && (
+              <ul className="mt-3 space-y-2">
+                {positionSlots.map((p) => (
+                  <li
+                    key={p.position}
+                    className="flex items-baseline justify-between gap-3 text-sm"
+                  >
+                    <span className="text-neutral-300">{p.position}</span>
+                    <span className="shrink-0 font-mono text-[11px] text-neutral-400">
+                      {p.slots} slot
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
       </div>
@@ -532,6 +505,18 @@ const DivisionCards = ({
   const activeDivs =
     fetchedDivisions && fetchedDivisions.length > 0 ? fetchedDivisions : null;
 
+  // Recruitment slots come from the pendaftaran divisions list (same source
+  // as the form), matched by division name.
+  const recruitmentFor = (divisionName: string, fallbackSlots: number) => {
+    const key = divisionName.trim().toLowerCase();
+    const match = fallbackDivisions.find(
+      (d) => d.name.trim().toLowerCase() === key,
+    );
+    return match
+      ? { slots: match.slots, positionSlots: match.positionSlots ?? [] }
+      : { slots: fallbackSlots, positionSlots: [] };
+  };
+
   const cardsToRender = activeDivs
     ? activeDivs.map((division) => {
         return (
@@ -539,8 +524,7 @@ const DivisionCards = ({
             key={division.name}
             name={division.name}
             members={division.members}
-            slots={division.slots}
-            openPositions={division.openPositions}
+            {...recruitmentFor(division.name, division.slots)}
             showSlots={isRecruitment}
           />
         );
@@ -553,7 +537,7 @@ const DivisionCards = ({
             name={division.name}
             members={staticMembers}
             slots={division.slots}
-            openPositions={division.openPositions || []}
+            positionSlots={division.positionSlots ?? []}
             showSlots={isRecruitment}
           />
         );

@@ -2703,6 +2703,13 @@ export type Division = {
   commitment: string;
   openPositions?: string[];
   juniorPositions?: string[];
+  positionSlots?: PositionSlot[];
+};
+
+export type PositionSlot = {
+  position: string;
+  slots: number;
+  isJunior: boolean;
 };
 
 export const JUNIOR_POSITION_TYPE = "Staf Muda";
@@ -2743,6 +2750,31 @@ export function getRecruitmentSlotLabel(
     .map((id) => titles.get(id))
     .find(Boolean);
   return byType || "Staf";
+}
+
+/** Open slots per jabatan; Staf Muda rows collapse into one entry. */
+function countPositionSlots(
+  rows: NotionPage[],
+  titles: Map<string, string>,
+): PositionSlot[] {
+  const counts = new Map<string, PositionSlot>();
+  for (const row of rows) {
+    const position = getRecruitmentSlotLabel(row, titles);
+    const isJunior = getRelationIds(row, PROP_SDM.TIPE_JABATAN).some(
+      (id) => titles.get(id) === JUNIOR_POSITION_TYPE,
+    );
+    const entry = counts.get(position);
+    if (entry) {
+      entry.slots += 1;
+      entry.isJunior ||= isJunior;
+    } else {
+      counts.set(position, { position, slots: 1, isJunior });
+    }
+  }
+  // Kepala Divisi first, then Staf Penuh, Staf Muda last.
+  const rank = (slot: PositionSlot) =>
+    slot.isJunior ? 2 : /kepala/i.test(slot.position) ? 0 : 1;
+  return [...counts.values()].sort((a, b) => rank(a) - rank(b));
 }
 
 export async function fetchDivisionsFromNotion(): Promise<{
@@ -2922,6 +2954,7 @@ export async function fetchDivisionsFromNotion(): Promise<{
           getRichText(page, "Commitment") ||
           "",
         openPositions: Array.from(new Set(openPositions)),
+        positionSlots: countPositionSlots(divisionRecruitments, jobdeskMap),
         juniorPositions: Array.from(
           new Set(
             divisionRecruitments
