@@ -11,8 +11,11 @@ import {
   PROP_STRUKTUR_ORGANISASI,
 } from "@/lib/glossarium";
 import {
+  fetchBatchMap,
   fetchDivisionsFromNotion,
   getNotionClient,
+  getRecruitmentSlotLabel,
+  isOpenRecruitmentSlot,
   resolveDatabaseId,
   resolveDataSourceIdSafe,
 } from "@/lib/notion";
@@ -115,13 +118,14 @@ async function writePendaftaranToNotion(data: {
   const sdmDbId = DB_SDM_EVALUASI;
 
   let batchPageId: string | null = null;
+  let batchMap: Awaited<ReturnType<typeof fetchBatchMap>> = {};
+  let currentBatchNum = NaN;
   try {
-    const { fetchBatchMap } = await import("@/lib/notion");
     const { fetchContainerCMSCached } = await import("@/lib/notion-builder");
     const cms = await fetchContainerCMSCached();
     const currentBatchStr = cms?.variables?.CURRENT_BATCH || "2";
-    const currentBatchNum = parseInt(currentBatchStr, 10);
-    const batchMap = await fetchBatchMap();
+    currentBatchNum = parseInt(currentBatchStr, 10);
+    batchMap = await fetchBatchMap();
     const currentBatchInfo = Object.values(batchMap).find(
       (batch) => batch.batchNum === currentBatchNum,
     );
@@ -231,41 +235,34 @@ async function writePendaftaranToNotion(data: {
         if (dsId) {
           const pages = await queryAllDataSourcePages(dsId);
           const targetPosSlug = choicePosition ? slugify(choicePosition) : "";
-          const candidates = pages.filter((page) => {
-            const status =
-              page.properties?.[PROP_SDM.STATUS_KEAKTIFAN]?.select?.name;
-            const divisionIds = relatedPageIds(
-              page,
-              PROP_SDM.STRUKTUR_ORGANISASI,
-            );
-            const batchIds = relatedPageIds(page, PROP_SDM.BATCH_PENDAFTARAN);
-
-            return (
-              status === "Rekrutmen" &&
-              divisionIds.includes(divPageId!) &&
-              batchIds.includes(batchPageId!)
-            );
-          });
+          // Same open-slot rule as the divisions list shown in the form.
+          const candidates = pages.filter(
+            (page) =>
+              isOpenRecruitmentSlot(page, batchMap, currentBatchNum) &&
+              relatedPageIds(page, PROP_SDM.STRUKTUR_ORGANISASI).includes(
+                divPageId!,
+              ),
+          );
 
           if (targetPosSlug) {
-            const candidatesWithRoles = await Promise.all(
-              candidates.map(async (candidate) => {
-                const roleIds = relatedPageIds(
-                  candidate,
-                  PROP_SDM.NAMA_JABATAN,
-                );
-                const roleTitles = await Promise.all(
-                  roleIds.map((roleId) => fetchPageTitle(roleId)),
-                );
-                return { candidate, roleTitles };
-              }),
+            const titles = new Map<string, string>();
+            const roleIds = new Set(
+              candidates.flatMap((candidate) => [
+                ...relatedPageIds(candidate, PROP_SDM.NAMA_JABATAN),
+                ...relatedPageIds(candidate, PROP_SDM.TIPE_JABATAN),
+              ]),
             );
-            const match = candidatesWithRoles.find(({ roleTitles }) =>
-              roleTitles.some(
-                (roleTitle) => slugify(roleTitle) === targetPosSlug,
+            await Promise.all(
+              [...roleIds].map(async (roleId) =>
+                titles.set(roleId, await fetchPageTitle(roleId)),
               ),
             );
-            if (match) sdmSlotId = match.candidate.id;
+            const match = candidates.find(
+              (candidate) =>
+                slugify(getRecruitmentSlotLabel(candidate, titles)) ===
+                targetPosSlug,
+            );
+            if (match) sdmSlotId = match.id;
           } else if (candidates.length === 1) {
             sdmSlotId = candidates[0].id;
           }

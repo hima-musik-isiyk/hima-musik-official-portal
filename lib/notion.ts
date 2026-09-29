@@ -2704,6 +2704,44 @@ export type Division = {
   openPositions?: string[];
 };
 
+/**
+ * An SDM row is an open recruitment slot when its status is "Rekrutmen" and
+ * its batch is the current batch or earlier (or unset). Earlier batches
+ * cover slots left unfilled from a previous round; future batches stay
+ * hidden until CURRENT_BATCH reaches them. Filled slots flip to "Aktif".
+ */
+export function isOpenRecruitmentSlot(
+  page: NotionPage,
+  batchMap: Record<string, BatchInfo>,
+  currentBatchNum: number,
+): boolean {
+  if (getSelect(page, PROP_SDM.STATUS_KEAKTIFAN) !== "Rekrutmen") return false;
+  if (Number.isNaN(currentBatchNum)) return true;
+
+  const batch = getRelationIds(page, PROP_SDM.BATCH_PENDAFTARAN)
+    .map((id) => batchMap[id])
+    .find(Boolean);
+  return !batch || batch.batchNum <= currentBatchNum;
+}
+
+/**
+ * Position label for an open slot: "04 Nama Jabatan" when set, otherwise
+ * "04 Tipe Jabatan" (e.g. "Staf Muda" slots have no specific jabatan).
+ */
+export function getRecruitmentSlotLabel(
+  page: NotionPage,
+  titles: Map<string, string>,
+): string {
+  const byName = getRelationIds(page, PROP_SDM.NAMA_JABATAN)
+    .map((id) => titles.get(id))
+    .find(Boolean);
+  if (byName) return byName;
+  const byType = getRelationIds(page, PROP_SDM.TIPE_JABATAN)
+    .map((id) => titles.get(id))
+    .find(Boolean);
+  return byType || "Staf";
+}
+
 export async function fetchDivisionsFromNotion(): Promise<{
   divisions: Division[];
   angkatanList: string[];
@@ -2762,21 +2800,9 @@ export async function fetchDivisionsFromNotion(): Promise<{
 
     const batchMap = await fetchBatchMap();
 
-    // Each SDM row with status "Rekrutmen" in the current batch is one open
-    // slot. Filled slots flip to "Aktif" and must no longer be offered.
-    const recruitmentPages = sdmPages.filter((page) => {
-      const status = getSelect(page, PROP_SDM.STATUS_KEAKTIFAN);
-      if (status !== "Rekrutmen") return false;
-
-      const relatedBatchIds = getRelationIds(page, PROP_SDM.BATCH_PENDAFTARAN);
-      const relatedBatch = relatedBatchIds
-        .map((id) => batchMap[id])
-        .find(Boolean);
-      const batchNum = relatedBatch ? relatedBatch.batchNum : 999;
-      return Number.isNaN(currentBatchNum)
-        ? true
-        : batchNum === currentBatchNum;
-    });
+    const recruitmentPages = sdmPages.filter((page) =>
+      isOpenRecruitmentSlot(page, batchMap, currentBatchNum),
+    );
 
     let taskPages: NotionPage[] = [];
     if (tasksDbId) {
@@ -2788,9 +2814,8 @@ export async function fetchDivisionsFromNotion(): Promise<{
 
     const jobdeskIds = new Set<string>();
     recruitmentPages.forEach((page) => {
-      const propRole = getProperty(page, PROP_SDM.NAMA_JABATAN);
-      if (propRole?.type === "relation") {
-        propRole.relation.forEach((r: { id: string }) => jobdeskIds.add(r.id));
+      for (const prop of [PROP_SDM.NAMA_JABATAN, PROP_SDM.TIPE_JABATAN]) {
+        getRelationIds(page, prop).forEach((id) => jobdeskIds.add(id));
       }
     });
 
@@ -2861,17 +2886,9 @@ export async function fetchDivisionsFromNotion(): Promise<{
       });
       const slots = divisionRecruitments.length;
 
-      const openPositions = divisionRecruitments
-        .flatMap((rp) => {
-          const propRole = getProperty(rp, PROP_SDM.NAMA_JABATAN);
-          if (propRole?.type === "relation") {
-            return propRole.relation.map((r: { id: string }) =>
-              jobdeskMap.get(r.id),
-            );
-          }
-          return [];
-        })
-        .filter(Boolean) as string[];
+      const openPositions = divisionRecruitments.map((rp) =>
+        getRecruitmentSlotLabel(rp, jobdeskMap),
+      );
 
       const divisionTasks = taskPages
         .filter((tp) => {
