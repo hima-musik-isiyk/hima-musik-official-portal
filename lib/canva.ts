@@ -179,7 +179,7 @@ async function canvaFetch(endpoint: string, options: RequestInit = {}) {
     } catch (e) {
       console.error("[Canva] Token refresh failed:", e);
       throw new Error(
-        "Canva session expired and auto-refresh failed. Please re-authenticate.",
+        "Canva session expired. Reconnect Canva at /api/canva/auth.",
       );
     }
   }
