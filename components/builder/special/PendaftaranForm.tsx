@@ -1769,7 +1769,9 @@ export default function PendaftaranForm() {
                             : formData.availability.length === 0
                               ? "Pilih minimal satu ketersediaan waktu"
                               : "Lengkapi motivasi dan ketersediaan"
-                        : "Periksa kembali data diri yang belum valid"}
+                        : step === 1
+                          ? "Periksa kembali data diri yang belum valid"
+                          : "Pilih divisi dan angkatan untuk melanjutkan"}
                   </span>
                 </span>
               )}

@@ -67,7 +67,14 @@ export const GenericButtonSpan: React.FC<GenericButtonSpanProps> = ({
     }
   }
 
-  const linkHref = resolvedTarget;
+  const fallbackHref =
+    labelKey.includes("formulir pendaftaran") ||
+    labelKey.includes("daftar sekarang") ||
+    labelKey.includes("daftar oprec") ||
+    labelKey.includes("isi formulir")
+      ? "/pendaftaran/form"
+      : "";
+  const linkHref = resolvedTarget || fallbackHref;
   const isExternal =
     linkHref.startsWith("http://") ||
     linkHref.startsWith("https://") ||
